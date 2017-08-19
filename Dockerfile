@@ -1,33 +1,38 @@
+# Base from Debian instead of Alpine, since Google uses glibc
 FROM arm32v7/debian:stretch-slim
 LABEL architecture="ARMv7"
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
+COPY client.json /opt/
+COPY src/asoundrc /root/.asoundrc
+
 # Install packages
 RUN apt-get update && \
+
 	apt-get install --no-install-recommends -y \
 		alsa-utils \
-		gcc \
+		locales \
+		connman \
 		python3-dev \
-		python3-pip \
-		portaudio19-dev \
-		libffi-dev \
-		libssl-dev && \
+		python3-venv
 
-	# Install and set python
-	pip3 install pip setuptools --upgrade && \
+# Set locales
+RUN locale-gen en_US en_US.UTF-8 && \
+	sed -i -e "s/# $LANG.*/$LANG.UTF-8 UTF-8/" /etc/locale.gen && \
+	dpkg-reconfigure --frontend=noninteractive locales && \
+	update-locale LANG=$LANG
 
-	# Install google-assistant-sdk
-	pip3 -v install --upgrade https://github.com/googlesamples/assistant-sdk-python/releases/download/0.3.0/google_assistant_library-0.0.2-py2.py3-none-linux_armv7l.whl && \
-	pip3 install google-assistant-sdk[samples] && \
+# Setup python virtual enviornment
+RUN python3 -m venv env && \
+	env/bin/python -m pip install --upgrade pip setuptools
 
-	apt-get remove -y --purge gcc build-essential python3-pip && \
-	rm -rf /var/lib/apt/lists/*
+# Start python virtual enviornment and install Google SDK
+RUN  . env/bin/activate && \
+	python -m pip install --upgrade google-assistant-library && \
+	python -m pip install --upgrade google-auth-oauthlib[tool]
 
-COPY *.json /tmp/
-RUN mv /tmp/*.json /opt/client.json
-	
-ENTRYPOINT echo "\n###############\nTo authorize, run this command:\n\ngoogle-oauthlib-tool --client-secrets /opt/client.json --scope https://www.googleapis.com/auth/assistant-sdk-prototype --save\n\n" && \
-	echo "To start, run:\n\ngoogle-assistant-demo\n\n" && \
-	/bin/sh
+COPY /src/start.py /opt/
 
+ENTRYPOINT . env/bin/activate && env/bin/python /opt/start.py
+#ENTRYPOINT . env/bin/activate && /bin/sh

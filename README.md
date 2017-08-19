@@ -13,12 +13,14 @@ To enable access to the Google Assistant API, do the following on your developme
     - Click Create. A dialog box appears that shows you a client ID and secret. (No need to remember or save this, just close the dialog.)
     - Click ⬇ (at the far right of screen) for the client ID to download the client secret JSON file (client_secret_XXXX.json).
 
-4. Copy the client_secret_XXXX.json file from your development machine to this folder. Alternatively, make a new .json file on your CHIP and paste the data from the file you downloaded into the new one.
+4. Copy the client_secret_XXXX.json file to this folder.
 
-5. Open the [Activity Controls page](https://myaccount.google.com/activitycontrols) for the Google account that you want to use with the Assistant. You can use any Google account, it does not need to be your developer account.
+5. Download GadgetOS to your development machine and build the OS. Flash the image to your CHIP Pro.
+ 
+6. [Download the GadgetCLI tools.](https://docs.getchip.com/gadget.html#set-up-gadget)
 
-Ensure the following toggle switches are enabled (blue):
-Web & App Activity
-Location History
-Device Information
-Voice & Audio Activity
+7. [Setup the wifi on your CHIP Pro.](https://docs.getchip.com/gadget.html#set-up-wifi)
+
+8. Do a "gadget build" from this folder and then "gadget deploy" and "gadget start"
+
+9. With CHIP Pro connected to your computer, follow the instructions through the terminal to finish authentication.

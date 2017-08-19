@@ -10,7 +10,7 @@ onboot:
   net: "host"
   readonly: false
   command: []
-  binds: []
-  capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME
+  binds: ['/var/run/dbus:/var/run/dbus','/root/.config/google-oauthlib-tool:/data']
+  capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
   devices: [/dev/mem]
 services: []
