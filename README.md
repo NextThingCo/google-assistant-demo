@@ -15,12 +15,21 @@ To enable access to the Google Assistant API, do the following on your developme
 
 4. Copy the client_secret_XXXX.json file to this folder.
 
-5. Download GadgetOS to your development machine and build the OS. Flash the image to your CHIP Pro.
+5. Download GadgetOS to your development machine and build the OS. Flash the image to your CHIP Pro and reboot.
  
 6. [Download the GadgetCLI tools.](https://docs.getchip.com/gadget.html#set-up-gadget)
 
 7. [Setup the wifi on your CHIP Pro.](https://docs.getchip.com/gadget.html#set-up-wifi)
 
-8. Do a "gadget build" from this folder and then "gadget deploy" and "gadget start"
+8. Do a "gadget build" from this folder and then "gadget deploy"
 
-9. With CHIP Pro connected to your computer, follow the instructions through the terminal to finish authentication.
+9. Enter "gadget shell
+
+10. Run the docker container with this command:
+
+ docker run --privileged --net=host --cap-add SYS_RAWIO --device /dev/mem -v 
+/sys:/sys -v /var/run/dbus:/var/run/dbus -v /data/.config/google-oauthlib-tool:/
+root/.config/google-oauthlib-tool -i $(docker images -q)
+
+11. Follow the instructions through the terminal to finish authentication.
+

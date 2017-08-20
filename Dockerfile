@@ -5,6 +5,7 @@ LABEL architecture="ARMv7"
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 COPY client.json /opt/
+copy wifiSettings.json /opt/
 COPY src/asoundrc /root/.asoundrc
 
 # Install packages
@@ -15,24 +16,38 @@ RUN apt-get update && \
 		locales \
 		connman \
 		python3-dev \
-		python3-venv
+		python3-dbus \
+		python3-pip && \
 
-# Set locales
-RUN locale-gen en_US en_US.UTF-8 && \
+	# Set locales
+	locale-gen en_US en_US.UTF-8 && \
 	sed -i -e "s/# $LANG.*/$LANG.UTF-8 UTF-8/" /etc/locale.gen && \
 	dpkg-reconfigure --frontend=noninteractive locales && \
-	update-locale LANG=$LANG
+	update-locale LANG=$LANG && \
 
-# Setup python virtual enviornment
-RUN python3 -m venv env && \
-	env/bin/python -m pip install --upgrade pip setuptools
+	pip3 install --upgrade pip setuptools && \
 
-# Start python virtual enviornment and install Google SDK
-RUN  . env/bin/activate && \
-	python -m pip install --upgrade google-assistant-library && \
-	python -m pip install --upgrade google-auth-oauthlib[tool]
+	# Install Google SDK and other utils
+	pip3 install --upgrade google-assistant-library && \
+	pip3 install --upgrade google-auth-oauthlib[tool] && \
+
+	# Install pyconnman and fix Python3 specific issues
+	export PYCONPATH=/usr/local/lib/python3.5/dist-packages/pyconnman && \
+	pip3 install --upgrade pyconnman && \
+	sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/interface.py && \
+	sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/agent.py && \
+	sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/service.py && \
+	sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/manager.py && \
+	sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/technology.py && \
+
+	mkdir -p /root/.config/google-oauthlib-tool && \
+
+	# Free up any extra space
+	rm -rf /root/.cache && \
+	rm -rf /usr/share/sounds/alsa/* 
 
 COPY /src/start.py /opt/
 
-ENTRYPOINT . env/bin/activate && env/bin/python /opt/start.py
-#ENTRYPOINT . env/bin/activate && /bin/sh
+CMD ["python3", "/opt/start.py"]
+#ENTRYPOINT ulimit -n 65536 && python3 /opt/start.py
+#ENTRYPOINT  ulimit -n 65536 && /bin/sh
