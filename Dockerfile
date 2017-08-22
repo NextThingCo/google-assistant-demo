@@ -4,20 +4,24 @@ LABEL architecture="ARMv7"
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
-COPY client.json /opt/
-copy wifiSettings.json /opt/
+RUN mkdir /APP && mkdir /APP/google-assistant
+
+COPY client.json /APP/google-assistant
+#copy wifiSettings.json /APP/google-assistant
 COPY src/asoundrc /root/.asoundrc
 
 # Install packages
 RUN apt-get update && \
 
 	apt-get install --no-install-recommends -y \
+		build-essential \
 		alsa-utils \
+		libffi-dev \
+		libssl-dev \
 		locales \
-		connman \
-		python3-dev \
-		python3-dbus \
-		python3-pip && \
+		python-dev \
+		python-dbus \
+		python-pip && \
 
 	# Set locales
 	locale-gen en_US en_US.UTF-8 && \
@@ -25,29 +29,51 @@ RUN apt-get update && \
 	dpkg-reconfigure --frontend=noninteractive locales && \
 	update-locale LANG=$LANG && \
 
-	pip3 install --upgrade pip setuptools && \
+	pip install --upgrade pip setuptools && \
+	pip install click && \
+	pip install grpcio-tools && \
+	pip install argparse && \
+	pip install google-auth && \
+	pip install google-assistant-grpc && \
+	pip install urllib3[secure] && \
+	pip install sounddevice && \
+	pip install click && \
+	pip install tenacity && \
 
 	# Install Google SDK and other utils
-	pip3 install --upgrade google-assistant-library && \
-	pip3 install --upgrade google-auth-oauthlib[tool] && \
+	pip install --upgrade google-assistant-library && \
+	pip install --upgrade google-auth-oauthlib[tool] && \
 
-	# Install pyconnman and fix Python3 specific issues
-	export PYCONPATH=/usr/local/lib/python3.5/dist-packages/pyconnman && \
-	pip3 install --upgrade pyconnman && \
-	sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/interface.py && \
-	sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/agent.py && \
-	sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/service.py && \
-	sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/manager.py && \
-	sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/technology.py && \
+	## Install pyconnman and fix Python3 specific issues
+	#export PYCONPATH=/usr/local/lib/python3.5/dist-packages/pyconnman && \
+	#pip3 install --upgrade pyconnman && \
+	#sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/interface.py && \
+	#sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/agent.py && \
+	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/service.py && \
+	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/manager.py && \
+	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/technology.py && \
 
 	mkdir -p /root/.config/google-oauthlib-tool && \
+#	mkdir /APP/wifi && \
+
+	apt-get remove -y --purge build-essential && \
 
 	# Free up any extra space
 	rm -rf /root/.cache && \
 	rm -rf /usr/share/sounds/alsa/* 
 
-COPY /src/start.py /opt/
+#ADD wifi-onboarding/start.sh /APP/wifi/start.sh
+#ADD build/linux_arm/wifi-onboarding /APP/wifi/wifi-onboarding
+#ADD wifi-onboarding/static /APP/wifi/static
+#ADD wifi-onboarding/view /APP/wifi/view
 
-CMD ["python3", "/opt/start.py"]
-#ENTRYPOINT ulimit -n 65536 && python3 /opt/start.py
-#ENTRYPOINT  ulimit -n 65536 && /bin/sh
+#ADD wifi-onboarding/hostapd.conf /etc/hostapd.conf
+#ADD wifi-onboarding/dnsmasq.conf /etc/dnsmasq.conf
+
+COPY ./src/start.py /APP/google-assistant/
+COPY ./src/test.py /APP/google-assistant/
+
+WORKDIR /APP
+
+CMD ["/bin/sh"]
+#CMD ["python3", "/opt/start.py"]

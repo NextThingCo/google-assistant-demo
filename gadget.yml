@@ -9,8 +9,8 @@ onboot:
   directory: "./"
   net: "host"
   readonly: false
-  command: ['python3', '/opt/start.py']
-  binds: ['/var/run/dbus:/var/run/dbus','/data/.config/google-oauthlib-tool:/root/.config/google-oauthlib-tool']
+  command: ['/bin/sh']
+  binds: ['/var/run/dbus:/var/run/dbus','/data/.config/google-oauthlib-tool:/root/.config/google-oauthlib-tool','/data/:/data']
   capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
-  devices: [/dev/mem]
+  devices: [/dev/mem,/dev/snd]
 services: []
