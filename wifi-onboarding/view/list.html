@@ -1,0 +1,12 @@
+{{ template "header.html" .}}
+  <h2>Access Points</h2>
+  <ul>
+  {{ range .pipeline }}
+    <a href="/ap/connect?id={{ .Path }}">
+      <li><h3>{{ .Name }}</h3></li>
+    </a>
+  {{ else }}
+  </ul>
+    <p>None Found :(</p>
+  {{ end }}
+{{ template "footer.html" .}}

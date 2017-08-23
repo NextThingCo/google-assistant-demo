@@ -1,0 +1,15 @@
+{{ template "header.html" .}}
+  {{ if .pipeline.Connecting }}
+    <h2>Connecting</h2>
+    <p>Please hold on while we try to connect... ╰(•̀&nbsp;3&nbsp;•́)━☆ﾟ.*･｡ﾟ</p>
+  {{ else if not .pipeline.Connected }}
+    <h1>Let's Get Connected! ∠(&nbsp;ᐛ&nbsp;」∠)＿</h1>
+    <a href="/ap/list">
+      <button class="chp-button">Get Access Points List</button>
+    </a>
+  {{ end }}
+
+  {{ if .pipeline.Connected }}
+    <h2>Connected: {{ .pipeline.Connected }}</h2>
+  {{ end }}
+{{ template "footer.html" .}}

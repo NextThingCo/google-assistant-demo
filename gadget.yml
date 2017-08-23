@@ -9,8 +9,20 @@ onboot:
   directory: "./"
   net: "host"
   readonly: false
-  command: ['python3', '/opt/start.py']
-  binds: ['/var/run/dbus:/var/run/dbus','/data/.config/google-oauthlib-tool:/root/.config/google-oauthlib-tool']
+  forking: true
+  command: ['python','/opt/start.py']
+  binds: ['/var/run/dbus:/var/run/dbus','/data/:/data  --privileged']
   capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
   devices: [/dev/mem]
+- name: wifi-onboarding
+  uuid: 1051c7c8-dbf1-4bbc-8ae8-28e9abb31901
+  image: ""
+  directory: "wifi-onboarding"
+  net: "host"
+  readonly: false
+  forking: true
+  command: []
+  binds: ['/var/run/dbus:/var/run/dbus --privileged']
+  capabilities: ["NET_ADMIN"]
+  devices: []
 services: []

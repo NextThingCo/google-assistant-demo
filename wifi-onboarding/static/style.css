@@ -1,0 +1,54 @@
+body {
+  background: #fff;
+}
+
+h1,h2,h3,h4 {
+  font-family: system-ui, sans-serif;
+}
+
+ul {
+  padding: 0;
+}
+
+a {
+  color: #eb008b;
+  text-decoration: none;
+}
+
+label {
+  font-family: system-ui, sans-serif;
+}
+
+.chp-button {
+  -webkit-font-smoothing: antialiased;
+  display: inline-block;
+  position: relative;
+  min-width: 64px;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 2px;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  line-height: 36px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  overflow: hidden;
+  vertical-align: middle;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+
+  background: pink;
+}
+.chp-button:hover {
+  cursor: pointer;
+}

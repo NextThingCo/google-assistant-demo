@@ -1,0 +1,9 @@
+{{ template "header.html" .}}
+  <h2>Connect to {{.pipeline.Name}}</h2>
+  <form action="/ap/connect" method="POST">
+    <label for="accessPointPassKey">Pass Key</label>
+    <input type="password" id="accessPointPassKey" name="accessPointPassKey">
+    <input type="hidden" name="accessPointPath" value="{{.pipeline.Path}}">
+    <button class="chp-button">Connect</button>
+  </form>
+{{ template "footer.html" .}}
