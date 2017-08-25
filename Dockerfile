@@ -6,9 +6,9 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN mkdir /APP && mkdir /APP/google-assistant
 
-COPY client.json /APP/google-assistant
+#COPY client.json /APP/google-assistant
 #copy wifiSettings.json /APP/google-assistant
-COPY src/asoundrc /root/.asoundrc
+#COPY src/asoundrc /root/.asoundrc
 
 # Install packages
 RUN apt-get update && \
@@ -19,61 +19,66 @@ RUN apt-get update && \
 		libffi-dev \
 		libssl-dev \
 		locales \
-		python-dev \
-		python-dbus \
-		python-pip && \
+		wget \
+		tar \
+		lsb zlib1g-dev \
+		portaudio19-dev \
+		python3-dev \
+		python3-dbus \
+		python3-pip
 
-	# Set locales
-	locale-gen en_US en_US.UTF-8 && \
+RUN locale-gen en_US en_US.UTF-8 && \
 	sed -i -e "s/# $LANG.*/$LANG.UTF-8 UTF-8/" /etc/locale.gen && \
 	dpkg-reconfigure --frontend=noninteractive locales && \
 	update-locale LANG=$LANG && \
 
-	pip install --upgrade pip setuptools && \
-	pip install click && \
-	pip install grpcio-tools && \
-	pip install argparse && \
-	pip install google-auth && \
-	pip install google-assistant-grpc && \
-	pip install urllib3[secure] && \
-	pip install sounddevice && \
-	pip install click && \
-	pip install tenacity && \
+	pip3 install --upgrade pip setuptools && \
+	pip3 install click && \
+	pip3 install grpcio-tools && \
+	pip3 install argparse && \
+	pip3 install google-auth && \
+	pip3 install google-assistant-grpc && \
+	pip3 install urllib3[secure] && \
+	pip3 install sounddevice && \
+	pip3 install click && \
+	pip3 install tenacity && \
+	pip3 install pyconnman && \
 
 	# Install Google SDK and other utils
-	pip install --upgrade google-assistant-library && \
-	pip install --upgrade google-auth-oauthlib[tool] && \
+	pip3 install --upgrade google-assistant-library && \
+	pip3 install --upgrade google-auth-oauthlib[tool] && \
 
-	## Install pyconnman and fix Python3 specific issues
-	#export PYCONPATH=/usr/local/lib/python3.5/dist-packages/pyconnman && \
-	#pip3 install --upgrade pyconnman && \
-	#sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/interface.py && \
-	#sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/agent.py && \
-	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/service.py && \
-	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/manager.py && \
-	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/technology.py && \
+	mkdir -p /root/.config/google-oauthlib-tool
 
-	mkdir -p /root/.config/google-oauthlib-tool && \
-#	mkdir /APP/wifi && \
+#RUN cd /tmp && wget https://github.com/pyinstaller/pyinstaller/releases/download/v3.2.1/PyInstaller-3.2.1.tar.bz2 && \
+#	tar jxf PyInstaller-3.2.1.tar.bz2 && \
+#	cd /tmp/Py*/bootloader && \
+#	python3 ./waf distclean all --no-lsb option && cd /tmp/Py* && python3 setup.py install
 
-	apt-get remove -y --purge build-essential && \
+COPY src/*.py /opt/
 
-	# Free up any extra space
-	rm -rf /root/.cache && \
-	rm -rf /usr/share/sounds/alsa/* 
+WORKDIR /opt
+#RUN pyinstaller -D -F -n ntc-google-assistant -c test.py
+#RUN ls /opt/
+	
+#	# Free up any extra space
+#RUN pip3 freeze | xargs pip3 uninstall -y
+#RUN  apt-get install -f && \#
+#	apt-get remove --purge -y build-essential python3-pip lsb && \
+#	apt-get autoremove -y && \
+#	rm -rf /root/.cache && \
+#	rm -rf /usr/share/sounds/alsa/*
 
-#ADD wifi-onboarding/start.sh /APP/wifi/start.sh
-#ADD build/linux_arm/wifi-onboarding /APP/wifi/wifi-onboarding
-#ADD wifi-onboarding/static /APP/wifi/static
-#ADD wifi-onboarding/view /APP/wifi/view
+#COPY ./src/*.py /APP/google-assistant/
 
-#ADD wifi-onboarding/hostapd.conf /etc/hostapd.conf
-#ADD wifi-onboarding/dnsmasq.conf /etc/dnsmasq.conf
+COPY credentials.json /root/.config/google-oauthlib-tool/
+COPY src/asoundrc /root/.asoundrc
 
-COPY ./src/start.py /APP/google-assistant/
-COPY ./src/test.py /APP/google-assistant/
+#WORKDIR /APP/google-assistant
+#ENTRYPOINT cp /opt/dist/ntc-google-assistant /tmp/
 
-WORKDIR /APP
 
-CMD ["/bin/sh"]
-#CMD ["python3", "/opt/start.py"]
+WORKDIR /opt
+RUN apt-get install -y git && \
+	git clone https://github.com/googlesamples/assistant-sdk-python
+

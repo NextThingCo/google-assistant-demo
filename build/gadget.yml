@@ -1,0 +1,16 @@
+spec: "0.0"
+name: test
+uuid: 51a14803-c8b3-4501-88d2-0198b7d75b8f
+type: docker
+onboot:
+- name: test
+  uuid: 399abbe3-e30a-4190-8fd3-8b40fa2a5974
+  image: ""
+  directory: "./"
+  net: "host"
+  readonly: false
+  command: ['/bin/sh']
+  binds: ['/var/run/dbus:/var/run/dbus']
+  capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
+  devices: [/dev/mem,/dev/snd]
+services: []

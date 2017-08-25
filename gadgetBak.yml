@@ -1,0 +1,26 @@
+spec: "0.0"
+name: google-assistant-demo
+uuid: 51a14803-c8b3-4501-88d2-0198b7d75b8f
+type: docker
+onboot:
+- name: google-assistant-demo
+  uuid: 399abbe3-e30a-4190-8fd3-8b40fa2a5974
+  image: ""
+  directory: "./"
+  net: "host"
+  readonly: false
+  command: ['/bin/sh']
+  binds: ['/var/run/dbus:/var/run/dbus','/data/.config/google-oauthlib-tool:/root/.config/google-oauthlib-tool','/data/:/data  --privileged']
+  capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
+  devices: [/dev/mem]
+- name: wifi-onboarding
+  uuid: 1051c7c8-dbf1-4bbc-8ae8-28e9abb31901
+  image: ""
+  directory: "wifi-onboarding"
+  net: "host"
+  readonly: false
+  command: []
+  binds: ['/var/run/dbus:/var/run/dbus --privileged']
+  capabilities: ["NET_ADMIN"]
+  devices: []
+services: []
