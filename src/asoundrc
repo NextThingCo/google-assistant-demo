@@ -1,43 +1,46 @@
 pcm.!default {
-type asym
-playback.pcm "plug:softvol"
-capture.pcm "plug:dsnooper"
+	type asym
+	playback.pcm "plug:softvol"
+	capture.pcm "plug:dsnooper"
 }
 pcm.dmixer {
-type dmix
-ipc_key 321456 #any unique value
-ipc_key_add_uid true
-slave {
-pcm "hw:0,0"
-rate 44100
+	type dmix
+	ipc_key 321456 #any unique value
+	ipc_key_add_uid true
+	slave {
+	pcm "hw:0,0"
+	rate 44100
+	period_time 2
+	period_size 8192
+	buffer_size 32768
 }
 bindings {
-0 0
-1 1
-}
+	0 0
+	1 1
+	}
 }
 pcm.dsnooper {
-type dsnoop
-ipc_key 821456
-slave {
-pcm "hw:0,0"
-channels 2
-rate 16000
+	type dsnoop
+	ipc_key 821456
+	slave {
+	pcm "hw:0,0"
+	channels 2
+	rate 16000
 }
 bindings {
-0 0
-1 1
-}
+	0 0
+	1 1
+	}
 }
 pcm.softvol {
-type softvol
-slave { pcm "dmixer" }
-control {
-name "Master"
-card 0
-}
+	type softvol
+	slave { pcm "dmixer" }
+	control {
+	name "Master"
+	card 0
+	}
 }
 ctl.softvol {
-type hw
-card 0
+	type hw
+	card 0
 }
