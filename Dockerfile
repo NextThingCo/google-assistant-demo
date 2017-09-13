@@ -3,20 +3,22 @@ FROM arm32v7/debian:stretch-slim
 LABEL architecture="ARMv7"
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
-
-COPY client.json /opt/
-COPY credentials.json /data/.config/google-oauthlib-tool/
-COPY src/asoundrc /root/.asoundrc
+WORKDIR /opt
 
 # Install packages
 RUN apt-get update && \
-
 	apt-get install --no-install-recommends -y \
-		mpg123 \
 		alsa-utils \
 		locales \
+		rfkill \
 		python-dev \
 		python-dbus \
+		python-eventlet \
+		python-gobject \
+		python-googleapi \
+		python-psutil \
+		python-pexpect \
+		python-smbus \
 		python-pip && \
 
 	# Set locales
@@ -26,46 +28,18 @@ RUN apt-get update && \
 	update-locale LANG=$LANG && \
 
 	pip install --upgrade pip setuptools && \
+	pip install --no-cache-dir google-assistant-library && \
+	pip install --no-cache-dir pyconnman PyDispatcher Flask Flask-SocketIO flask_uploads && \
+	#pip install -no-cache-dir google-auth-oauthlib[tool] && \
+	
+	#RUN mkdir -p /root/.config/google-oauthlib-tool && \
 
-	# Install Google SDK and other utils
-	pip install --upgrade google-assistant-library && \
-	pip install --upgrade google-auth-oauthlib[tool] && \
-
-	# Install pyconnman and fix Python3 specific issues
-	#export PYCONPATH=/usr/local/lib/python3.5/dist-packages/pyconnman && \
-	pip install --upgrade pyconnman && \
-	pip install Flask Flask-SocketIO
-
-RUN apt-get install -y --no-install-recommends python-eventlet
-
-	#sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/interface.py && \
-	#sed -i 's/from exceptions/from pyconnman.exceptions/' $PYCONPATH/agent.py && \
-	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/service.py && \
-	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/manager.py && \
-	#sed -i 's/from interface/from pyconnman.interface/' $PYCONPATH/technology.py && \
-
-RUN pip install PyDispatcher
-
-RUN mkdir -p /root/.config/google-oauthlib-tool && \
-
-	# Free up any extra space
-	#rm -rf /root/.cache && \
-	#rm -rf /usr/share/sounds/alsa/*  && \
-	#rm -rf /usr/share/man/* && \
 	pip uninstall -y setuptools && \
-	#apt-get remove --purge -y python-pip && \
-	apt-get autoremove -y
+	apt-get autoremove -y && \
+	apt-get autoclean -y
 
-#COPY /src/*.mp3 /opt/
+COPY src/asoundrc /root/.asoundrc
 COPY /src/limits.conf /etc/security/
-COPY credentials.json /root/.config/google-oauthlib-tool/
-COPY resources /opt/
-#COPY /src/start.py /opt/
-#COPY webpage /opt/webpage
-#COPY localWebServer.py /opt/
-#COPY *.py /opt/
-RUN apt-get install -y --no-install-recommends python-gobject python-googleapi python-psutil python-pexpect rfkill
 
-WORKDIR /opt
-#CMD ["python", "/opt/start.py"]
+
 CMD ["/bin/sh"]

@@ -6,14 +6,29 @@
 		<meta charset="utf-8" />
 	</head>
 	<body>
-		Oh hi new friend!@
 		<p id="connection_status"></p>
 		<form name="wifi" id="wifi" method="post" action="" id="WIFI_FORM" >
-			<select name="ssid" id="ssid" onchange="selectNetwork(this)">
-			</select>
-		<p id="password_field"></p>
-		<p id="connect_button"></p>
+			<select name="ssid" id="ssid" onchange="selectNetwork(this)"></select>
+			<p id="password_field"></p>
+			<p id="connect_button"></p>
 		</form>
+
+		<p>
+		<p id="auth_status"></p>
+		<form name="auth" id="auth" method="post" action="" id="AUTH_FORM" >
+			<p id="client_json_button"></p>
+			<p id="connect_button"></p>
+		</form>
+
+		<form method="post" enctype=multipart/form-data action ="/upload">
+			<input type="file" accept=".json" name="user_file">
+			<input type="submit">
+		</form>
+
+		<form name="auth" id="auth" method="post" action="/" id="AUTH_CODE" >
+    		<p id="auth_link"></p>
+     		<p id="auth_code"</p>
+    	</form>
 
 		<script src="assets/js/jquery.min.js"></script>
 		<script src="assets/js/jquery.scrolly.min.js"></script>

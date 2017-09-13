@@ -1,4 +1,5 @@
 c*.json
+*.pyc
 
 # Compiled source #
 ###################
