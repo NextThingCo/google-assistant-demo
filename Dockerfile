@@ -41,4 +41,5 @@ COPY webpage /opt/webpage
 COPY configs/asoundrc /root/.asoundrc
 COPY configs/limits.conf /etc/security/
 
-CMD ["exec python start.py"]
+#CMD ["/bin/sh"]
+CMD ["/usr/bin/python /opt/start.py"]
