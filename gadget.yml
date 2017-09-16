@@ -2,7 +2,8 @@ spec: "0.0"
 name: google-assistant-demo
 uuid: 51a14803-c8b3-4501-88d2-0198b7d75b8f
 type: docker
-onboot:
+onboot: []
+services:
 - name: google-assistant-demo
   uuid: 399abbe3-e30a-4190-8fd3-8b40fa2a5974
   image: ""
@@ -11,7 +12,6 @@ onboot:
   readonly: false
   forking: true
   command: ['python','/opt/start.py']
-  binds: ['/var/run/dbus:/var/run/dbus','/data/:/data  --privileged']
+  binds: ['/var/run/dbus:/var/run/dbus --privileged']
   capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
-  devices: [/dev/mem]
-services: []
+  devices: [/dev/mem,/dev/snd]

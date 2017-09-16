@@ -30,16 +30,15 @@ RUN apt-get update && \
 	pip install --upgrade pip setuptools && \
 	pip install --no-cache-dir google-assistant-library && \
 	pip install --no-cache-dir pyconnman PyDispatcher Flask Flask-SocketIO flask_uploads && \
-	#pip install -no-cache-dir google-auth-oauthlib[tool] && \
-	
-	#RUN mkdir -p /root/.config/google-oauthlib-tool && \
 
 	pip uninstall -y setuptools && \
 	apt-get autoremove -y && \
 	apt-get autoclean -y
 
-COPY src/asoundrc /root/.asoundrc
-COPY /src/limits.conf /etc/security/
+COPY *.py /opt/
+COPY resources /opt/resources
+COPY webpage /opt/webpage
+COPY configs/asoundrc /root/.asoundrc
+COPY configs/limits.conf /etc/security/
 
-
-CMD ["/bin/sh"]
+CMD ["exec python start.py"]

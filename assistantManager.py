@@ -13,25 +13,33 @@ import ast
 import os
 import string
 
-CREDENTIALS = '/opt/credentials.json'
+CLIENT      = '/opt/.config/client.json'
+CREDENTIALS = '/opt/.config/credentials.json'
 
 class GoogleAssistant:    
-    def __init__(self,clientJSONPath):
-        self.clientJSONPath = clientJSONPath
+    def __init__(self):
+        if not os.path.exists('/opt/.config'):
+            os.makedirs('/opt/.config')
+
         self.flow = None
         self.bNeedAuthorization = True
         self.process = None
         self.authStatus = None
         self.authLink = None
+        self.previousEvent = None
         self.killAssistant()
 
     def startAssistant(self):
-        self.killAssistant() # Kill any Assistant processes that may already be running.
         if self.bNeedAuthorization == True and self.checkCredentials() == False:
+            return
+
+        if self.isRunning():
             return
 
         ulimit = 65536
         os.system('ulimit -n ' + str(ulimit))
+        dispatcher.send(signal='google_assistant_event',eventName='ON_LOADING')
+        self.previousEvent = 'ON_LOADING'
         self.process = pexpect.spawn('google-assistant-demo --credentials ' + CREDENTIALS,timeout=None)
 
         while self.process.isalive():
@@ -71,18 +79,26 @@ class GoogleAssistant:
             if output.find('ON_') > -1:
                 output = output.replace(":","")
                 dispatcher.send(signal='google_assistant_event',eventName=output)
+                self.previousEvent = output
             elif output.find('timed out'):
                 dispatcher.send(signal='google_assistant_event',eventName='TIMEOUT')
+                self.previousEvent = 'TIMEOUT'
             elif output.find('is_fatal'):
                 pass
             else:
                 print "GoogleAssistant: Error processing response: " + output
 
-    def checkCredentials(self):
-        # Check for existing (and valid) credentials.
-        clientFile = self.clientJSONPath+'/client.json'
+    def getPreviousEvent(self):
+        return self.previousEvent
 
-        if not os.path.isfile(CREDENTIALS) or not os.path.isfile(clientFile):
+    def checkCredentials(self):
+        # If Google Assistant is running, assume we are fully authorized.
+        if self.isRunning():
+            self.setAuthorizationStatus('authorized')
+            return True
+
+        # Check for existing (and valid) credentials.
+        if not os.path.isfile(CREDENTIALS) or not os.path.isfile(CLIENT):
             self.bNeedAuthorization = True
             print( "GoogleAssistant: Authentication needed!")
             if not self.authLink:
@@ -94,13 +110,18 @@ class GoogleAssistant:
             credentials = google.oauth2.credentials.Credentials(token=None,**json.load(open(CREDENTIALS)))
             http_request = google.auth.transport.requests.Request()
             credentials.refresh(http_request)
-            print "GoogleAssistant: Existing valid token found!"
+            self.authLink = None
             self.bNeedAuthorization = False
             self.setAuthorizationStatus('authorized')
+            print "GoogleAssistant: Existing valid token found!"
             return True
         except Exception as e:
             if str(e).find('Failed to establish a new connection') > -1:
                 print "GoogleAssistant: Can't connect to server. No internet connection?"
+            elif str(e).find('simultaneous read') > -1:
+                # A warning from socketio about simultaneous reads.
+                # TODO... figure out a better way to handle this. For now, ignore it.
+                return
             else:
                 print "GoogleAssistant: Authorization error: " + str(e)
 
@@ -108,8 +129,8 @@ class GoogleAssistant:
             self.bNeedAuthorization = True
         return False
 
-    def setAuthorizationStatus(self,status):
-        if status != self.authStatus or status == 'authorized':
+    def setAuthorizationStatus(self,status,bForce=False):
+        if status != self.authStatus or status == 'authorized' or bForce:
             dispatcher.send(signal='google_auth_status',status=status)
 
         self.authStatus = status
@@ -117,15 +138,40 @@ class GoogleAssistant:
     def getAuthorizationStatus(self):
         return self.authStatus
 
+    def saveClientJSON(self,data):
+        if os.path.exists(CLIENT):
+            os.remove(CLIENT)
+
+        if os.path.isfile(CREDENTIALS):
+            os.remove(CREDENTIALS)
+
+        with open(CLIENT, 'w') as outfile:
+            json.dump(data, outfile)
+
+
     def getAuthroizationLink(self,bRefresh=False):
+        if not self.getAuthorizationStatus():
+            return
+
+        if self.getAuthorizationStatus() == 'authorized' or self.previousEvent == 'ON_LOADING' or os.path.isfile(CREDENTIALS):
+            self.authLink = None
+            return
+
+        print "er"
         if self.authLink != None and not bRefresh:
             return self.authLink
+        print "ok"
 
+        if not os.path.isfile(CLIENT):
+            return
+
+        print "ok2"
         data = None
-        with open(self.clientJSONPath+'/client.json') as data_file:    
+        with open(CLIENT) as data_file:    
             data = json.load(data_file)
 
         try:
+            print "yep"
             clientID = data['installed']['client_id']
             clientSecret = data['installed']['client_secret']
             uri = data['installed']['redirect_uris'][0]
@@ -136,17 +182,15 @@ class GoogleAssistant:
                 scope=scope,
                 redirect_uri=uri)
 
-            if os.path.isfile(CREDENTIALS):
-                os.remove(CREDENTIALS)
-
             self.authLink = self.flow.step1_get_authorize_url()
-            self.setAuthorizationStatus('authentication_uri_created')
+            self.setAuthorizationStatus('authentication_uri_created',True)
             return self.authLink
         except Exception as e:
             print e
             return False
 
     def setAuthorizationCode(self,authCode):
+        self.authLink = None
         try:
             credentials = self.flow.step2_exchange(authCode)
             credentials.authorize(httplib2.Http())
