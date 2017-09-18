@@ -36,10 +36,11 @@ RUN apt-get update && \
 	apt-get autoclean -y
 
 COPY *.py /opt/
+RUN ls /opt/ && python -m compileall /opt/. && ls /opt/
 COPY resources /opt/resources
 COPY webpage /opt/webpage
 COPY configs/asoundrc /root/.asoundrc
 COPY configs/limits.conf /etc/security/
 
 #CMD ["/bin/sh"]
-CMD ["/usr/bin/python /opt/start.py"]
+#CMD ["/usr/bin/python /opt/start.py"]

@@ -1,6 +1,3 @@
-from assistantManager import GoogleAssistant
-from wifiConnmanManager import WifiManager
-from localWebServer import WebServer
 from pydispatch import dispatcher
 import psutil
 import subprocess
@@ -24,16 +21,24 @@ INTERNET_DISCONNECTED 			= "resources/internet_disconnected.wav"
 class GoogleAssistantDemo():
 	def __init__(self):
 		signal.signal(signal.SIGINT, self.signal_handler)
-		
 		self.bPlayedIntro = False
 		self.bPlayedSetupInstructions = False
 		self.bLostConnection = False
 		self.bSoundLock = False
 
 		self.playAudio(WAIT_AUDIO)
+		self.playAudio(THINKING_AUDIO,delay=2,bForce=True)
 
+		print ("Starting web werver...")
+		from localWebServer import WebServer                           
+                self.webServer = WebServer()
+
+		print ("Starting WIFI manager...")
+		from wifiConnmanManager import WifiManager
 		self.wifiManager = WifiManager() # Manage and evaluate status of wifi/internet connections.
-		self.webServer = WebServer() # Start a webserver that hosts our HTML frontend interface.
+	
+		print ("Starting Google stuff...")
+		from assistantManager import GoogleAssistant
 		self.googleAssistant = GoogleAssistant()
 
 		self.setDispatchEvents() # Register functions for any dispatched events.
@@ -64,7 +69,8 @@ class GoogleAssistantDemo():
 			self.playAudio(READY_AUDIO)
 			self.bSoundLock = False
 		if eventName == 'ON_CONVERSATION_TURN_STARTED':
-			self.playAudio(ASSISTANT_LISTENING_AUDIO)
+			self.bSoundLock = False
+			self.playAudio(ASSISTANT_LISTENING_AUDIO,bForce=True)
 			print "GoogleAssistant: Waiting for user to finish speaking..."
 		if eventName == 'ON_END_OF_UTTERANCE':
 			print "GoogleAssistant: User has finished speaking."
@@ -174,15 +180,15 @@ class GoogleAssistantDemo():
 
 	# Attach our functions to any dispact signals we care about.
 	def setDispatchEvents(self):
-		dispatcher.connect( self.onGoogleAssistantEvent.__get__(self, GoogleAssistantDemo),  signal="google_assistant_event", sender=dispatcher.Any )
-		dispatcher.connect( self.onGoogleAssistantData.__get__(self, GoogleAssistantDemo), signal="google_assistant_data", sender=dispatcher.Any )
-		dispatcher.connect( self.onHTMLConnection.__get__(self, WifiManager), signal="on_html_connection", sender=dispatcher.Any )
-		dispatcher.connect( self.onWifiScan.__get__(self, WifiManager), signal="wifi_scan_complete", sender=dispatcher.Any )
-		dispatcher.connect( self.onWifiRequestConnection.__get__(self, GoogleAssistantDemo), signal="wifi_user_request_connection", sender=dispatcher.Any )
-		dispatcher.connect( self.onWifiConnectionStatus.__get__(self, GoogleAssistantDemo), signal="wifi_connection_status", sender=dispatcher.Any )
-		dispatcher.connect( self.onGoogleAuthStatus.__get__(self, GoogleAssistantDemo), signal="google_auth_status", sender=dispatcher.Any )
-		dispatcher.connect( self.onGoogleClientJSONReceived.__get__(self, GoogleAssistantDemo), signal="google_auth_client_json_received", sender=dispatcher.Any )
-		dispatcher.connect( self.onGoogleAuthCodeReceived.__get__(self, GoogleAssistantDemo), signal="google_auth_code_received", sender=dispatcher.Any )
+		dispatcher.connect( self.onGoogleAssistantEvent,  signal="google_assistant_event", sender=dispatcher.Any )
+		dispatcher.connect( self.onGoogleAssistantData, signal="google_assistant_data", sender=dispatcher.Any )
+		dispatcher.connect( self.onHTMLConnection, signal="on_html_connection", sender=dispatcher.Any )
+		dispatcher.connect( self.onWifiScan, signal="wifi_scan_complete", sender=dispatcher.Any )
+		dispatcher.connect( self.onWifiRequestConnection, signal="wifi_user_request_connection", sender=dispatcher.Any )
+		dispatcher.connect( self.onWifiConnectionStatus, signal="wifi_connection_status", sender=dispatcher.Any )
+		dispatcher.connect( self.onGoogleAuthStatus, signal="google_auth_status", sender=dispatcher.Any )
+		dispatcher.connect( self.onGoogleClientJSONReceived, signal="google_auth_client_json_received", sender=dispatcher.Any )
+		dispatcher.connect( self.onGoogleAuthCodeReceived, signal="google_auth_code_received", sender=dispatcher.Any )
 
 	def playAudio(self,audioFile,delay=0,bKeepAlive=False,bForce=False):
 		if self.bSoundLock and not bForce:
