@@ -11,6 +11,7 @@ RUN apt-get update && \
 		alsa-utils \
 		locales \
 		rfkill \
+		iproute \
 		python-dev \
 		python-dbus \
 		python-eventlet \

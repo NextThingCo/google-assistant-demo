@@ -1,3 +1,17 @@
+# Copyright (C) 2017 Next Thing Co. <software@nextthing.co>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
 from oauth2client import tools
@@ -157,21 +171,17 @@ class GoogleAssistant:
             self.authLink = None
             return
 
-        print "er"
         if self.authLink != None and not bRefresh:
             return self.authLink
-        print "ok"
 
         if not os.path.isfile(CLIENT):
             return
 
-        print "ok2"
         data = None
         with open(CLIENT) as data_file:    
             data = json.load(data_file)
 
         try:
-            print "yep"
             clientID = data['installed']['client_id']
             clientSecret = data['installed']['client_secret']
             uri = data['installed']['redirect_uris'][0]

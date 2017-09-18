@@ -1,3 +1,18 @@
+# Copyright (C) 2017 Next Thing Co. <software@nextthing.co>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
+
 from pydispatch import dispatcher
 import psutil
 import subprocess
@@ -11,7 +26,8 @@ ASSISTANT_LISTENING_AUDIO 		= "resources/chime_16bit_48k.wav"
 ASSISTANT_FAILURE_AUDIO 		= "resources/unsuccessful_16bit_48k.wav"
 
 INTRO_AUDIO 					= "resources/instructions.wav"
-SETUP_AUDIO 					= "resources/setup.wav"
+SETUP_AUDIO 					= "resources/setup.wav" #For 192.168.81.1
+SETUP_AUDIO_ALT					= "resources/setup-alt.wav" #For 192.168.82.1
 WAIT_AUDIO						= "resources/wait.wav"
 THINKING_AUDIO					= "resources/thinking.wav"
 READY_AUDIO						= "resources/ready.wav"
@@ -161,6 +177,7 @@ class GoogleAssistantDemo():
 			self.webServer.broadcast('google_authorization_invalid',None)
 		elif status == 'no_connection':
 			self.webServer.broadcast('google_no_connection',None)
+			self.playSetupInstructions()
 
 	# When the user uploads their client.json file to the web frontend...
 	# Get the authorization URL and send it to the web server to display in HTML.
@@ -200,7 +217,7 @@ class GoogleAssistantDemo():
 					proc.kill()
 
 		FNULL = open(os.devnull, 'w')
-		command = "sleep " + str(delay) + " && aplay " + audioFile
+		command = "sleep " + str(delay) + " && aplay --buffer-time=150000 " + audioFile
 		self.audioProcess = subprocess.Popen(command,stdout=FNULL,stderr=subprocess.STDOUT,shell = True)
 
 	def playIntroAudio(self):
@@ -212,9 +229,15 @@ class GoogleAssistantDemo():
 		else:
 			self.playAudio(WAIT_AUDIO,delay=1)
 
-	def playSetupInstructions(self):
+	def playSetupInstructions(self):		
 		if not self.bPlayedSetupInstructions:
-			self.playAudio(SETUP_AUDIO)
+			audioFile = SETUP_AUDIO
+			status = subprocess.check_output(['ip','a','show','usb1'])
+			if status.find('NO-CARRIER') > -1:
+				# Use IP 192.168.81.1 instead
+				audioFile = SETUP_AUDIO_ALT
+
+			self.playAudio(audioFile)
 
 		self.bPlayedSetupInstructions = True
 

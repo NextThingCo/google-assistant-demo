@@ -1,3 +1,18 @@
+// Copyright (C) 2017 Next Thing Co. <software@nextthing.co>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>
+
 var authInstructions = '<p>In order to use Google Assistant on your device, \
 						you will to first set up a new project under your Google Account if you have not done so already. You should only have to do these steps once.</p> \
 						<p>1: Follow <a target="_blank" href="https://developers.google.com/assistant/sdk/prototype/getting-started-other-platforms/config-dev-project-and-account">this link</a> \
@@ -41,7 +56,11 @@ var wifiStatus = null
 
 	socket.on('wifi_scan_complete', function(data){
 		html = '<select name="ssid" id="ssid" onchange="selectNetwork(this)">'
-		html+='<option value="">(Select a Network)</option>'
+		if (wifiStatus=='online') {
+			html+='<option value="">(Connected)</option>'
+		} else {
+			html+='<option value="">(Select a Network)</option>'
+		}
 		networks = data
 		$.each(networks, function(i, item){
 			if(item['ssid']) {
