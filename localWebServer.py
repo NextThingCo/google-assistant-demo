@@ -103,11 +103,19 @@ class WebServer:
     def networkConnectEvent(data):
         dispatcher.send(signal='wifi_user_request_connection',data=data)
 
+    @socketio.on('on_antenna_set')
+    def networkConnectEvent(data):
+        dispatcher.send(signal='wifi_antenna_set',status=int(data['status']))
+
     # Socket event when the use has entered an authorization code after signing into their Google acct
     @socketio.on('on_submit_auth_code')
     def authCodeEvent(data):
         dispatcher.send(signal='google_auth_code_received',code=data['code'])
 
+    @socketio.on('on_reset_googleCredentials')
+    def clearCredentialsEvent():
+        dispatcher.send(signal='google_auth_clear',data=None)
+        
     def shutdown(self):
         global socketio
         socketio.stop()

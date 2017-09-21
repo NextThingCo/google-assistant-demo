@@ -13,12 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-var authInstructions = '<p>In order to use Google Assistant on your device, \
-						you will to first set up a new project under your Google Account if you have not done so already. You should only have to do these steps once.</p> \
+var authInstructions = '<p>In order to use Google Assistant on your device for development purposes,  \
+						you will first need to set up a new project under your Google Account if you have not done so already.</p> \
+						<p><b>You should only have to do these steps once per device.</b></p> \
 						<p>1: Follow <a target="_blank" href="https://developers.google.com/assistant/sdk/prototype/getting-started-other-platforms/config-dev-project-and-account">this link</a> \
 						for instructions on setting up an account.</p> \
-    					<p>2: Once completed, download the <b>client_secret_XXXXX.json</b> file from the Google API Console Project credentials section mentioned in the link above.<p>\
-						<p>3: Upload your credentials file here by clicking the button below:</p> \
+    					<p>2: Once completed, you should now have a <b>client_secret_xxxxx.json</b> credentials file saved to the computer you are using to access this page.<p>\
+						<p>3: Upload your credentials JSON file by clicking the <b>Choose File</b> button and then <b>Submit<b></p> \
 						<form name="auth" id="auth" method="post" action="/" id="AUTH_CODE" > \
     					<p id="auth_code"</p> \
 						</form>'
@@ -35,7 +36,9 @@ var authJsonButton 		= '<form name="auth" id="auth" method="post" action="" id="
 var authURICopy1 		= "<p>You're almost finished! Simply click on the link listed below and sign into your Google account:<p>"
 var authURICopy2 		= '<p>You will then see an authorization code. Copy this code and paste it into the box below to finish setup:</p> \
 							<p>Paste code here: <input type="code" id="code"></p> \
-							<p><button class="btn" onclick="submitAuthCode()">Submit</button></p>'
+							<p><button class="btn" onclick="submitAuthCode()">Submit</button></p> \
+							<p><p><p> \
+							<p><a id="clearCreds" title="Reset Credentials" href="#" onclick="resetGoogleCredentials();return false;">Reset Credentials</a></p>'
 
 var socket = io.connect('http://' + document.domain + ':' + location.port + "/");
 var networks = null;
@@ -66,22 +69,46 @@ var wifiStatus = null
 			if(item['ssid']) {
 				ssid = item['ssid']
 				strength = item['strength']
-				rating = ' *'
+				rating = ' &bull;'
 				if(strength>45) {
-					rating = ' **'
+					rating = '  &bull;&bull;'
 				}
 				if(strength>50) {
-					rating = ' ***'
+					rating = '  &bull;&bull;&bull;'
 				}
 				if(strength>54) {
-					rating = ' ****'
+					rating = '  &bull;&bull;&bull;&bull;'
 				}	
-				html+='<option value="' + ssid + '">'+ssid+rating+'</option>'
+				html+='<option value="' + ssid + '">'+ssid+'&nbsp;&nbsp;'+rating+'</option>'
 			}
 		});
 		html+="</select>"
 		document.getElementById("ssid").innerHTML = html;
 	});
+
+	function resetGoogleCredentials() {
+		socket.emit('on_reset_googleCredentials');
+		window.location.reload()
+	}
+
+	function setAntenna(status,bNoUpdate){
+		if(!status) {
+			status = document.getElementById('antenna').checked
+		}
+		if(status==1) {
+			html ='<input type="checkbox" id="antenna" name="antenna" value="1" onchange="setAntenna()" checked> \
+			<label for="antenna"><b>External Antenna is Enabled</b><br> (be sure to <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">connect your antenna</a> for best results)</label><br>'
+		} else {
+			html ='<input type="checkbox" id="antenna" name="antenna" value="0" onchange="setAntenna()"> \
+			<label for="antenna"><b>External Antenna is Disabled</b><br> (using a <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">external antenna</a> is strongly recommended)</label><br>'
+		}
+		if(!bNoUpdate) {
+			socket.emit('on_antenna_set', {status:status});
+		}
+		
+		console.log('Antenna: ' + Boolean(status))
+		document.getElementById("antenna_button").innerHTML = html;
+	}
 
 	function selectNetwork(select){
 		if(select.value=='') {
@@ -146,6 +173,10 @@ var wifiStatus = null
 				alert(msg);
 			}
 		}
+	});
+
+	socket.on('wifi_antenna_status', function(status){
+		setAntenna(status,true)
 	});
 
 	socket.on('google_assistant_event', function(eventName){

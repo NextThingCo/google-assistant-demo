@@ -32,7 +32,7 @@ STATUS_OFFLINE			= "offline"			# Connected to wifi network with no internet conn
 STATUS_ONLINE			= "online"			# Connected to wifi network with valid internet connection
 STATUS_CONNECTING		= "connecting"		# Attempting to connect to a network
 
-NETWORK_TIMEOUT			= 2					# Number of seconds to give up on trying to the internet
+NETWORK_TIMEOUT			= 3					# Number of seconds to give up on trying to the internet
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 gobject.threads_init()

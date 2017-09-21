@@ -223,3 +223,15 @@ class GoogleAssistant:
             self.setAuthorizationStatus('authentication_invalid')
             
             return False
+
+    def resetCredentials(self):
+        try: os.remove(CREDENTIALS)
+        except: pass
+        
+        try: os.remove(CLIENT)
+        except: pass
+
+        self.authLink = None
+
+        print "Credentials cleared"
+

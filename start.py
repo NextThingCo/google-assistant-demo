@@ -14,48 +14,34 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 from pydispatch import dispatcher
-import psutil
 import subprocess
+import threading
 import json
 import signal
 import time
 import sys
 import os
 
-ASSISTANT_LISTENING_AUDIO 		= "resources/chime_16bit_48k.wav"
-ASSISTANT_FAILURE_AUDIO 		= "resources/unsuccessful_16bit_48k.wav"
-
-INTRO_AUDIO 					= "resources/instructions.wav"
-SETUP_AUDIO 					= "resources/setup.wav" #For 192.168.81.1
-SETUP_AUDIO_ALT					= "resources/setup-alt.wav" #For 192.168.82.1
-WAIT_AUDIO						= "resources/wait.wav"
-THINKING_AUDIO					= "resources/thinking.wav"
-READY_AUDIO						= "resources/ready.wav"
-INTERNET_RECONNECTED 			= "resources/internet_reconnected.wav"
-INTERNET_DISCONNECTED 			= "resources/internet_disconnected.wav"
-
 class GoogleAssistantDemo():
 	def __init__(self):
 		signal.signal(signal.SIGINT, self.signal_handler)
-		self.bPlayedIntro = False
-		self.bPlayedSetupInstructions = False
-		self.bLostConnection = False
-		self.bSoundLock = False
-
-		self.instructionsAudioProc = None
-
-		self.playAudio(WAIT_AUDIO)
-		self.playAudio(THINKING_AUDIO,delay=2,bForce=True)
+		
+		self.bLostNetworkConnect = False
+		
+		from statusAudioPlayer import StatusAudioPlayer
+		self.statusAudioPlayer = StatusAudioPlayer()
+		self.statusAudioPlayer.playWait()
+		self.statusAudioPlayer.playThinking(delay=2)
 
 		print ("Starting web werver...")
 		from localWebServer import WebServer                           
-                self.webServer = WebServer()
+		self.webServer = WebServer()
 
 		print ("Starting WIFI manager...")
 		from wifiConnmanManager import WifiManager
 		self.wifiManager = WifiManager() # Manage and evaluate status of wifi/internet connections.
 	
-		print ("Starting Google stuff...")
+		print ("Starting Google applications...")
 		from assistantManager import GoogleAssistant
 		self.googleAssistant = GoogleAssistant()
 
@@ -70,7 +56,7 @@ class GoogleAssistantDemo():
 	# This is called from a dispatched event once Google's authentication has been validated.
 	def startGoogleAssistant(self):
 		if not self.googleAssistant.isRunning():
-			self.playIntroAudio()
+			self.statusAudioPlayer.playIntro()
 
 		self.googleAssistant.startAssistant()
 
@@ -84,21 +70,19 @@ class GoogleAssistantDemo():
 		self.webServer.broadcast('google_assistant_event',eventName)
 		if eventName == 'ON_START_FINISHED':
 			print 'GoogleAssistant: Ready! Say "Hey Google" or "OK Google" and a question.'
-			self.playAudio(READY_AUDIO)
-			self.bSoundLock = False
+			self.statusAudioPlayer.playReadyAudio()
 		if eventName == 'ON_CONVERSATION_TURN_STARTED':
-			self.bSoundLock = False
-			self.playAudio(ASSISTANT_LISTENING_AUDIO,bForce=True)
+			self.statusAudioPlayer.playListeningAudio()
 			print "GoogleAssistant: Waiting for user to finish speaking..."
 		if eventName == 'ON_END_OF_UTTERANCE':
 			print "GoogleAssistant: User has finished speaking."
 		if eventName == 'ON_RESPONDING_FINISHED':
 			print "GoogleAssistant: Finished reponse."
 		if eventName == 'ON_CONVERSATION_TURN_TIMEOUT':
-			self.playAudio(ASSISTANT_FAILURE_AUDIO)
+			self.statusAudioPlayer.playFailureAudio()
 			print "GoogleAssistant: Stopped waiting for reply."
 		if eventName == 'ON_NO_RESPONSE':
-			self.playAudio(ASSISTANT_FAILURE_AUDIO)
+			self.statusAudioPlayer.playFailureAudio()
 			print "GoogleAssistant: No valid response to user's sentence."
 
 	# A handler for data coming from our implementation of Google Assistant.
@@ -118,9 +102,11 @@ class GoogleAssistantDemo():
 	# Handler for a dispactched event when a user has connected to the device's web interface.
 	# If using a USB connection, this address will most likely be http://192.168.82.1/
 	def onHTMLConnection(self):
+		self.statusAudioPlayer.setUserConnectionStatus(True)
 		wifiStatus = self.wifiManager.getStatus()
 		self.onWifiConnectionStatus(wifiStatus)
 		self.wifiManager.listServices()
+
 		if wifiStatus == 'online' or wifiStatus == 'connecting':
 				googleAuthStatus = self.googleAssistant.getAuthorizationStatus()
 				self.webServer.broadcast('auth_status',googleAuthStatus)
@@ -140,24 +126,22 @@ class GoogleAssistantDemo():
 
 	# Event from Wifi Manager object when user has either successfully or unsuccessfully connected to a wifi network.
 	def onWifiConnectionStatus(self,statusID=None,msg=None):
+		self.getAntennaStatus()
+
 		if not statusID:
 			statusID = self.wifiManager.getStatus()
 
 		self.webServer.broadcast('wifi_connection_status',statusID)
 		if statusID != "online" and self.googleAssistant.isRunning():
-			if not self.bLostConnection:
-				self.playAudio(INTERNET_DISCONNECTED,delay=0.4)
-				self.playAudio(THINKING_AUDIO,delay=6,bForce=True,bKeepAlive=True)
+			if not self.bLostNetworkConnect:
+				self.statusAudioPlayer.playDisconnected()
+				self.statusAudioPlayer.playThinking(delay=6)
 
-			self.bLostConnection = True
+			self.bLostNetworkConnect = True
 			self.googleAssistant.killAssistant()
 			
 		elif statusID == "online":
-			if self.bPlayedIntro:
-				self.playAudio(INTERNET_RECONNECTED,delay=0.5)
-				self.bSoundLock = True
-				
-			self.bLostConnection = False
+			self.bLostNetworkConnect = False
 			self.googleAssistant.checkCredentials()
 			self.webServer.broadcast('auth_status',self.googleAssistant.getAuthorizationStatus())
 			
@@ -172,14 +156,14 @@ class GoogleAssistantDemo():
 			self.startGoogleAssistant()
 		elif status == 'authentication_required':
 			self.webServer.broadcast('google_authentication_required',None)
-			self.playSetupInstructions()
+			self.statusAudioPlayer.playSetupInstructions()
 		elif status == 'authentication_uri_created':
 			self.webServer.broadcast('google_show_authentication_uri',self.googleAssistant.getAuthroizationLink())
 		elif status == 'authentication_invalid':
 			self.webServer.broadcast('google_authorization_invalid',None)
 		elif status == 'no_connection':
 			self.webServer.broadcast('google_no_connection',None)
-			self.playSetupInstructions()
+			self.statusAudioPlayer.playSetupInstructions()
 
 	# When the user uploads their client.json file to the web frontend...
 	# Get the authorization URL and send it to the web server to display in HTML.
@@ -192,6 +176,9 @@ class GoogleAssistantDemo():
 	def onGoogleAuthCodeReceived(self,code):
 		self.googleAssistant.setAuthorizationCode(code.strip())
 		self.googleAssistant.checkCredentials()
+
+	def onGoogleCredentialsRemove(self,data=None):
+		self.googleAssistant.resetCredentials()
 	
     # --------------------- #
 	#         MISC          #
@@ -205,44 +192,26 @@ class GoogleAssistantDemo():
 		dispatcher.connect( self.onWifiScan, signal="wifi_scan_complete", sender=dispatcher.Any )
 		dispatcher.connect( self.onWifiRequestConnection, signal="wifi_user_request_connection", sender=dispatcher.Any )
 		dispatcher.connect( self.onWifiConnectionStatus, signal="wifi_connection_status", sender=dispatcher.Any )
+		dispatcher.connect( self.setAntennaStatus, signal="wifi_antenna_set", sender=dispatcher.Any )
 		dispatcher.connect( self.onGoogleAuthStatus, signal="google_auth_status", sender=dispatcher.Any )
 		dispatcher.connect( self.onGoogleClientJSONReceived, signal="google_auth_client_json_received", sender=dispatcher.Any )
 		dispatcher.connect( self.onGoogleAuthCodeReceived, signal="google_auth_code_received", sender=dispatcher.Any )
+		dispatcher.connect( self.onGoogleCredentialsRemove, signal="google_auth_clear", sender=dispatcher.Any )
 
-	def playAudio(self,audioFile,delay=0,bKeepAlive=False,bForce=False):
-		if self.bSoundLock and not bForce:
-			return
+	def setAntennaStatus(self,status):
+		os.environ['EXT_ANTENNA'] = str(status)
+		if not os.path.isdir("/sys/class/gpio/gpio49"):
+			os.system("echo 49 > /sys/class/gpio/export")
 
-		if not bKeepAlive:
-			for proc in psutil.process_iter():
-				if proc.name() == 'aplay':
-					proc.kill()
+		os.system("echo 'out' > /sys/class/gpio/gpio49/direction")
+		os.system("echo " + str(status) + " > /sys/class/gpio/gpio49/value")
+		self.webServer.broadcast('wifi_antenna_status',status)
 
-		FNULL = open(os.devnull, 'w')
-		command = "sleep " + str(delay) + " && aplay --period-size=8192 --buffer-size=32768 " + audioFile
-		return subprocess.Popen(command,stdout=FNULL,stderr=subprocess.STDOUT,shell = True)
-
-	def playIntroAudio(self):
-		if not self.bPlayedIntro:
-			self.bPlayedIntro = True
-			self.instructionsAudioProc = self.playAudio(INTRO_AUDIO,delay=1)
-			self.bSoundLock = True
-			time.sleep(0.5)
-		else:
-			self.playAudio(WAIT_AUDIO,delay=1)
-
-	def playSetupInstructions(self):		
-		if not self.bPlayedSetupInstructions:
-			audioFile = SETUP_AUDIO
-			status = subprocess.check_output(['ip','a','show','usb0'])
-			if status.find('NO-CARRIER') > -1:
-				# Use IP 192.168.81.1 instead
-				audioFile = SETUP_AUDIO_ALT
-
-			self.instructionsAudioProc = self.playAudio(audioFile)
-
-		self.bPlayedSetupInstructions = True
-
+	def getAntennaStatus(self):
+		status = int(os.environ.get('EXT_ANTENNA'))
+		self.webServer.broadcast('wifi_antenna_status',status)
+		return 
+		
 	def signal_handler(self, signal, frame):
 		self.webServer.shutdown()
 		sys.exit(0)
