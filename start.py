@@ -42,6 +42,8 @@ class GoogleAssistantDemo():
 		self.bLostConnection = False
 		self.bSoundLock = False
 
+		self.instructionsAudioProc = None
+
 		self.playAudio(WAIT_AUDIO)
 		self.playAudio(THINKING_AUDIO,delay=2,bForce=True)
 
@@ -217,13 +219,13 @@ class GoogleAssistantDemo():
 					proc.kill()
 
 		FNULL = open(os.devnull, 'w')
-		command = "sleep " + str(delay) + " && aplay --buffer-time=150000 " + audioFile
-		self.audioProcess = subprocess.Popen(command,stdout=FNULL,stderr=subprocess.STDOUT,shell = True)
+		command = "sleep " + str(delay) + " && aplay --period-size=8192 --buffer-size=32768 " + audioFile
+		return subprocess.Popen(command,stdout=FNULL,stderr=subprocess.STDOUT,shell = True)
 
 	def playIntroAudio(self):
 		if not self.bPlayedIntro:
 			self.bPlayedIntro = True
-			self.playAudio(INTRO_AUDIO,delay=1)
+			self.instructionsAudioProc = self.playAudio(INTRO_AUDIO,delay=1)
 			self.bSoundLock = True
 			time.sleep(0.5)
 		else:
@@ -232,12 +234,12 @@ class GoogleAssistantDemo():
 	def playSetupInstructions(self):		
 		if not self.bPlayedSetupInstructions:
 			audioFile = SETUP_AUDIO
-			status = subprocess.check_output(['ip','a','show','usb1'])
+			status = subprocess.check_output(['ip','a','show','usb0'])
 			if status.find('NO-CARRIER') > -1:
 				# Use IP 192.168.81.1 instead
 				audioFile = SETUP_AUDIO_ALT
 
-			self.playAudio(audioFile)
+			self.instructionsAudioProc = self.playAudio(audioFile)
 
 		self.bPlayedSetupInstructions = True
 

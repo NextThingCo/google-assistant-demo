@@ -46,7 +46,6 @@ class WifiManager():
 
 		self.waitForWifiInterface()
 		self.setWifiPower(True)
-		self.listServices()
 
 		# Monitor the state of wifi and internet status every few seconds.
 		def monitor():
@@ -167,7 +166,13 @@ class WifiManager():
 	def listServices(self):
 		def list():
 			tech = pyconnman.ConnTechnology('/net/connman/technology/wifi')
-			tech.scan()
+			print tech
+			try:
+				tech.scan()
+			except:
+				# The carrier might not be ready yet if wifi is still powering on
+				return
+
 			self.services = self.manager.get_services()
 			wifiList = {}
 			for (path, params) in self.services:

@@ -42,6 +42,9 @@ COPY resources /opt/resources
 COPY webpage /opt/webpage
 COPY configs/asoundrc /root/.asoundrc
 COPY configs/limits.conf /etc/security/
+COPY test.sh /opt/
+COPY demo.py /opt/
+ENV EXT_ANTENNA=1
 
 #CMD ["/bin/sh"]
 #CMD ["/usr/bin/python /opt/start.py"]
