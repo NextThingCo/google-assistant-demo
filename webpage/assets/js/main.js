@@ -92,14 +92,11 @@ var wifiStatus = null
 	}
 
 	function setAntenna(status,bNoUpdate){
-		if(!status) {
-			status = document.getElementById('antenna').checked
-		}
 		if(status==1) {
-			html ='<input type="checkbox" id="antenna" name="antenna" value="1" onchange="setAntenna()" checked> \
+			html ='<input type="checkbox" id="antenna" name="antenna" value="1" onchange="setAntenna(0)" checked> \
 			<label for="antenna"><b>External Antenna is Enabled</b><br> (be sure to <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">connect your antenna</a> for best results)</label><br>'
 		} else {
-			html ='<input type="checkbox" id="antenna" name="antenna" value="0" onchange="setAntenna()"> \
+			html ='<input type="checkbox" id="antenna" name="antenna" value="0" onchange="setAntenna(1)"> \
 			<label for="antenna"><b>External Antenna is Disabled</b><br> (using a <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">external antenna</a> is strongly recommended)</label><br>'
 		}
 		if(!bNoUpdate) {

@@ -39,6 +39,7 @@ class GoogleAssistantDemo():
 
 		print ("Starting WIFI manager...")
 		from wifiConnmanManager import WifiManager
+		self.setAntennaStatus(self.getAntennaStatus())
 		self.wifiManager = WifiManager() # Manage and evaluate status of wifi/internet connections.
 	
 		print ("Starting Google applications...")
@@ -134,10 +135,10 @@ class GoogleAssistantDemo():
 		self.webServer.broadcast('wifi_connection_status',statusID)
 		if statusID != "online" and self.googleAssistant.isRunning():
 			if not self.bLostNetworkConnect:
+				self.bLostNetworkConnect = True
 				self.statusAudioPlayer.playDisconnected()
 				self.statusAudioPlayer.playThinking(delay=6)
-
-			self.bLostNetworkConnect = True
+			
 			self.googleAssistant.killAssistant()
 			
 		elif statusID == "online":
@@ -199,18 +200,31 @@ class GoogleAssistantDemo():
 		dispatcher.connect( self.onGoogleCredentialsRemove, signal="google_auth_clear", sender=dispatcher.Any )
 
 	def setAntennaStatus(self,status):
-		os.environ['EXT_ANTENNA'] = str(status)
+		try:
+			if status == 0:
+				os.mknod('/opt/.config/disable_antenna')
+			elif status == 1 and os.path.isfile("/opt/.config/disable_antenna"):
+				os.remove('/opt/.config/disable_antenna')
+		except:
+			print "lk"
+			pass
+		
 		if not os.path.isdir("/sys/class/gpio/gpio49"):
 			os.system("echo 49 > /sys/class/gpio/export")
+			os.system("echo 'out' > /sys/class/gpio/gpio49/direction")
 
-		os.system("echo 'out' > /sys/class/gpio/gpio49/direction")
+		print "STATUS: " + str(status)
 		os.system("echo " + str(status) + " > /sys/class/gpio/gpio49/value")
 		self.webServer.broadcast('wifi_antenna_status',status)
 
 	def getAntennaStatus(self):
-		status = int(os.environ.get('EXT_ANTENNA'))
+		if os.path.isfile("/opt/.config/disable_antenna"):
+			status = 0
+		else:
+			status = 1
+
 		self.webServer.broadcast('wifi_antenna_status',status)
-		return 
+		return status
 		
 	def signal_handler(self, signal, frame):
 		self.webServer.shutdown()

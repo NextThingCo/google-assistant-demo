@@ -85,7 +85,7 @@ class StatusAudioPlayer():
 		if not self.bPlayedIntro:
 			self.bPlayedIntro = True
 			self.playAudio(INTRO_AUDIO,delay=1,bPriority=True)
-			time.sleep(0.5)
+			time.sleep(1.5)
 		else:
 			self.playAudio(WAIT_AUDIO,delay=1.5,bPriority=False)
 
@@ -132,11 +132,17 @@ class StatusAudioPlayer():
 	def playThinking(self,delay=0):
 		self.playAudio(THINKING_AUDIO,delay=delay)
 
-	def playWait(self):
+	def playDisconnected(self):
 		self.playAudio(WAIT_AUDIO)
+		self.playAudio(THINKING_AUDIO,delay=2)
+
+	def playWait(self):
+		self.playAudio(WAIT_AUDIO)	
 
 	def playReadyAudio(self):
-		if self.introTime and time.time() - self.introTime < 15:
+		time.sleep(0.25)
+		print time.time() - self.introTime
+		if self.introTime and time.time() - self.introTime < 30:
 			return
 
 		self.playAudio(READY_AUDIO)
