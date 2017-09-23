@@ -18,8 +18,8 @@ import threading
 import psutil
 import time
 
-ASSISTANT_LISTENING_AUDIO 		= "resources/chime_16bit_48k.wav"
-ASSISTANT_FAILURE_AUDIO 		= "resources/unsuccessful_16bit_48k.wav"
+ASSISTANT_LISTENING_AUDIO 		= "resources/chime.wav"
+ASSISTANT_FAILURE_AUDIO 		= "resources/unsuccessful.wav"
 
 INTRO_AUDIO 					= "resources/instructions.wav"
 WAIT_AUDIO						= "resources/wait.wav"
@@ -81,8 +81,8 @@ class StatusAudioPlayer():
 			return False
 
 	def playIntro(self):
-		self.introTime = time.time()
 		if not self.bPlayedIntro:
+			self.introTime = time.time()
 			self.bPlayedIntro = True
 			self.playAudio(INTRO_AUDIO,delay=1,bPriority=True)
 			time.sleep(1.5)
@@ -94,7 +94,6 @@ class StatusAudioPlayer():
 			return
 
 		self.bPlayedSetupInstructions = True
-
 		# The USB ethernet gadget will either use 192.168.81.1 or 192.168.82.1, depending on the client's OS.
 		# Return true if 81.1, or false if 82.1
 		def getIPAudio():
@@ -105,6 +104,7 @@ class StatusAudioPlayer():
 			return SETUP_AUDIO_PART2_1
 
 		def audioSequence():
+			time.sleep(0.5)
 			self.playAudio(SETUP_AUDIO_PART1, bBlocking=True,bPriority=True)
 			# Play specific files for a USB IP address for 192.168.81.1 and another for 192.168.82.1
 			self.playAudio(getIPAudio(), bBlocking=True,bPriority=True)
@@ -133,15 +133,16 @@ class StatusAudioPlayer():
 		self.playAudio(THINKING_AUDIO,delay=delay)
 
 	def playDisconnected(self):
-		self.playAudio(WAIT_AUDIO)
+		time.sleep(0.25)
+		self.playAudio(INTERNET_DISCONNECTED)
 		self.playAudio(THINKING_AUDIO,delay=2)
 
 	def playWait(self):
+		time.sleep(0.25)
 		self.playAudio(WAIT_AUDIO)	
 
 	def playReadyAudio(self):
 		time.sleep(0.25)
-		print time.time() - self.introTime
 		if self.introTime and time.time() - self.introTime < 30:
 			return
 

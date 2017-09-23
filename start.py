@@ -164,7 +164,9 @@ class GoogleAssistantDemo():
 			self.webServer.broadcast('google_authorization_invalid',None)
 		elif status == 'no_connection':
 			self.webServer.broadcast('google_no_connection',None)
-			self.statusAudioPlayer.playSetupInstructions()
+			if not self.wifiManager.checkPreviousWifiNetworks():
+				print "Could not find a previous wifi network in range. User needs to do setup process."
+				self.statusAudioPlayer.playSetupInstructions()
 
 	# When the user uploads their client.json file to the web frontend...
 	# Get the authorization URL and send it to the web server to display in HTML.
@@ -206,14 +208,12 @@ class GoogleAssistantDemo():
 			elif status == 1 and os.path.isfile("/opt/.config/disable_antenna"):
 				os.remove('/opt/.config/disable_antenna')
 		except:
-			print "lk"
 			pass
 		
 		if not os.path.isdir("/sys/class/gpio/gpio49"):
 			os.system("echo 49 > /sys/class/gpio/export")
 			os.system("echo 'out' > /sys/class/gpio/gpio49/direction")
 
-		print "STATUS: " + str(status)
 		os.system("echo " + str(status) + " > /sys/class/gpio/gpio49/value")
 		self.webServer.broadcast('wifi_antenna_status',status)
 

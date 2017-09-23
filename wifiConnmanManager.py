@@ -121,6 +121,17 @@ class WifiManager():
 
 		return False
 
+	# Evaluate if any previous wifi network we've connected to is currently in range.
+	def checkPreviousWifiNetworks(self):
+		if self.services == None:
+			self.listServices()
+
+		for (path, params) in self.services:
+			if self.agentExists(path):
+				return True
+
+		return False
+
 	# Attempt to reconnect to a previous wifi agent
 	def reconnect(self):
 		if self.services == None:
@@ -206,19 +217,29 @@ class WifiManager():
 			print("No wifi network found")
 			return
 
-		print "Attempting to connect to " + ssid + "..."
+		print "Attempting to connect to " + ssid + "..." + passphrase
 		dispatcher.send(signal="wifi_connection_status",statusID=STATUS_CONNECTING)
-		try:
+
+		def serviceConnect():
+			print "service"
 			self.agent = pyconnman.SimpleWifiAgent('/test/agent')
 			self.agent.set_service_params(servicePath,name,ssid,identity,username,password,passphrase,wpspin)
 			self.manager.register_agent('/test/agent')
 			service = pyconnman.ConnService(servicePath)
 			service.connect()
 			dispatcher.send(signal="wifi_connection_status",statusID=STATUS_ONLINE)
+
+		try:
+			serviceConnect()
 		except dbus.exceptions.DBusException:
 			exception = str(dbus.String(sys.exc_info()[1]))
 			print exception
-			if exception.find('AlreadyConnected') != -1:
+			if exception.find('there is already a handler') != -1:
+				print "Restting service..."
+				service = pyconnman.ConnService(servicePath)
+				service.remove()
+				serviceConnect()
+			elif exception.find('AlreadyConnected') != -1:
 				dispatcher.send(signal="wifi_connection_status",statusID=STATUS_ONLINE)
 				pass
 			elif exception.find('NoReply') != -1:

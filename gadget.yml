@@ -11,7 +11,7 @@ services:
   net: "host"
   readonly: false
   forking: true
-  command: ['python','/opt/start.py']
-  binds: ['/sys:/sys','/var/run/dbus:/var/run/dbus','/var/lib/connman:/var/lib/connman','/data/.config:/opt/.config --privileged']
+  command: ['python','-u','/opt/start.py']
+  binds: ['/sys:/sys','/var/run/dbus:/var/run/dbus','/var/lib/connman:/var/lib/connman','/var/lib/alsa:/var/lib/alsa','/data/.config:/opt/.config --privileged']
   capabilities: [SYS_RAWIO,NET_ADMIN,SYS_TIME]
   devices: [/dev/mem,/dev/snd]
