@@ -30,6 +30,8 @@ class GoogleAssistantDemo():
 		
 		from statusAudioPlayer import StatusAudioPlayer
 		self.statusAudioPlayer = StatusAudioPlayer()
+		self.statusAudioPlayer.playListeningAudio()
+		time.sleep(0.5)
 		self.statusAudioPlayer.playWait()
 		self.statusAudioPlayer.playThinking(delay=2)
 
@@ -58,6 +60,8 @@ class GoogleAssistantDemo():
 	def startGoogleAssistant(self):
 		if not self.googleAssistant.isRunning():
 			self.statusAudioPlayer.playIntro()
+		else:
+			self.webServer.broadcast('google_assistant_event','ON_START_FINISHED')
 
 		self.googleAssistant.startAssistant()
 
@@ -123,7 +127,7 @@ class GoogleAssistantDemo():
 	# Handler for dispatch event when the user requests to connect a network from the HTML frontend.
 	def onWifiRequestConnection(self,data):
 		print "Wifi attempting connection to " + data['ssid']
-		self.wifiManager.connect(data['ssid'],data['passphrase'])
+		self.wifiManager.connect(ssid=data['ssid'],passphrase=data['passphrase'])
 
 	# Event from Wifi Manager object when user has either successfully or unsuccessfully connected to a wifi network.
 	def onWifiConnectionStatus(self,statusID=None,msg=None):
@@ -132,8 +136,11 @@ class GoogleAssistantDemo():
 		if not statusID:
 			statusID = self.wifiManager.getStatus()
 
+		print ":::::: " + str(statusID)
+
 		self.webServer.broadcast('wifi_connection_status',statusID)
-		if statusID != "online" and self.googleAssistant.isRunning():
+		if (statusID == 'disconnected' or statusID == 'offline' ) and self.googleAssistant.isRunning():
+			print "SHOULD I? " + statusID + ", " + str(self.bLostNetworkConnect)
 			if not self.bLostNetworkConnect:
 				self.bLostNetworkConnect = True
 				self.statusAudioPlayer.playDisconnected()

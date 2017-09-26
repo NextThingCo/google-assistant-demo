@@ -97,7 +97,13 @@ class StatusAudioPlayer():
 		# The USB ethernet gadget will either use 192.168.81.1 or 192.168.82.1, depending on the client's OS.
 		# Return true if 81.1, or false if 82.1
 		def getIPAudio():
-			status = subprocess.check_output(['ip','a','show','usb0'])
+			status = None
+			while not status:
+				try:
+					status = subprocess.check_output(['ip','a','show','usb0'])
+				except:
+					pass
+
 			if status.find('NO-CARRIER') > -1:
 				return SETUP_AUDIO_PART2_2
 

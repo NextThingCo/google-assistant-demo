@@ -16,6 +16,7 @@
 import dbus.mainloop.glib
 import subprocess
 import threading
+import pexpect
 import pyconnman
 import gobject
 import urllib2
@@ -40,12 +41,15 @@ gobject.threads_init()
 class WifiManager():
 	def __init__(self):
 		self.manager = pyconnman.ConnManager()
+		self.bInternetConnected = False
 		self.status = STATUS_DISCONNECTED
 		self.agent = None
 		self.services = None
 
 		self.waitForWifiInterface()
 		self.setWifiPower(True)
+		time.sleep(1)
+		self.reset()
 
 		# Monitor the state of wifi and internet status every few seconds.
 		def monitor():
@@ -72,16 +76,18 @@ class WifiManager():
 		status = None
 		state = self.manager.get_property(name='State')
 		# See if we're logged into an access point.
-		if state == "online":
+		if state == "online" or status == "ready":
 			# Ping Google to see if we have an internet connection.
 			try:
 				urllib2.urlopen('http://216.58.192.142', timeout=NETWORK_TIMEOUT)
+				self.bInternetConnected = True
 				status = STATUS_ONLINE
 			except:
+				self.bInternetConnected = False
 				status = STATUS_OFFLINE
 
 		# If not connected to any wifi network...
-		elif state == "idle":
+		elif state == "idle" and self.status != self.bInternetConnected:
 			status = STATUS_DISCONNECTED
 			self.reconnect()
 	
@@ -105,9 +111,6 @@ class WifiManager():
 	# Do a hard reset of the wifi interface.
 	def reset(self):
 		self.setWifiPower(False)
-		FNULL = open(os.devnull, 'w')
-		subprocess.call(['rfkill','block','1'],stdout=FNULL)
-		subprocess.call(['rfkill','unblock','1'],stdout=FNULL)
 		self.setWifiPower(True)
 		self.waitForWifiInterface()
 		self.listServices()
@@ -116,7 +119,7 @@ class WifiManager():
 	def agentExists(self,path):
 		agents = os.listdir('/var/lib/connman')
 		for agent in agents:
-			if path == '/net/connman/service/' + agent:
+			if path == agent:
 				return True
 
 		return False
@@ -139,27 +142,11 @@ class WifiManager():
 			return
 
 		for (path, params) in self.services:
-			if self.agentExists(path):
+			wifiPath = path.replace('/net/connman/service/','')
+			settingsFile = '/var/lib/connman/'+wifiPath+'/settings'
+			if self.agentExists(wifiPath) and os.path.isfile(settingsFile) and 'Favorite=true' in open(settingsFile).read():
 				print ("Attempting to reconnect to " + params['Name'])
-				dispatcher.send(signal="wifi_connection_status",statusID=STATUS_CONNECTING)
-				try:
-					service = pyconnman.ConnService(path)
-					service.connect()
-					return True
-				except dbus.exceptions.DBusException:
-					exception = str(dbus.String(sys.exc_info()[1]))
-					if exception.find('AlreadyConnected') != -1:
-						dispatcher.send(signal="wifi_connection_status",statusID=STATUS_ONLINE)
-						print("Already connected!")
-					elif exception.find('Input/output error') != -1:
-						print "Connman I/O error! Attempting to reset."
-						dispatcher.send(signal="wifi_connection_status",statusID=STATUS_DISCONNECTED)
-						self.reset()
-					else:
-						dispatcher.send(signal="wifi_connection_status",statusID=STATUS_DISCONNECTED)
-						print "WIFI ERROR!"
-						print exception
-						self.reset()
+				self.connect(servicePath=wifiPath)
 
 		return False
 
@@ -201,46 +188,81 @@ class WifiManager():
 		t.setDaemon(True)
 		t.start()
 
-	def connect(self,ssid=None,passphrase=None,name=None,identity=None,username=None,password=None,wpspin=None):
-		if self.services == None:
+	def connect(self,servicePath=None,ssid=None,passphrase=None,name=None,identity=None,username=None,password=None,wpspin=None):
+		print "connect1"
+
+		while self.services == None:
 			self.listServices()
+			time.sleep(0.5)
 
-		servicePath = None
-		for (path, params) in self.services:
+		print "connect2"
+		bClear = False
+		if not servicePath and ssid:
+			print "connect3"
+			for (path, params) in self.services:
+				try:
+					if str(dbus.String(params['Name'])) == ssid:
+						servicePath = path
+						bClear = True
+						print "connect3"
+				except:
+					pass
+
+			if not servicePath:
+				print("No wifi network found")
+				return
+
+			print "connect4"
+			
+			if os.path.exists('/var/lib/connman/'+servicePath):
+				os.system('rm -rf /var/lib/connman/'+servicePath)
+
+			print "Attempting to connect to " + ssid + "..." + passphrase
+		
+		print "connect5"
+
+		self.setStatus(STATUS_CONNECTING)
+		
+		child = pexpect.spawn('connmanctl')
+		child.expect('connmanctl>')
+
+		servicePath = servicePath.replace('/net/connman/service/','')
+
+		if bClear:
+			child.sendline('config ' + servicePath + ' --remove')
+
+		child.sendline('agent on')
+		child.expect('connmanctl>')
+		child.sendline('connect ' + servicePath)
+
+		def doConnect():
+			print "connect6"
 			try:
-				if str(dbus.String(params['Name'])) == ssid:
-					servicePath = path
+				index = child.expect(['.*Already.*','.*Connected.*','.*Passphrase.*','.*In progress.*','.*Input/output.*','.*invalid.*','.*try (yes/no).*','.*aborted.*'], timeout=20)
+				print child.after
+				if index == 0 or index == 1:
+					print "ONLINE"
+					self.setStatus(STATUS_ONLINE)
+				elif index == 2:
+					child.sendline(passphrase)
+					doConnect()
+				elif index == 3 or index == 4:
+					time.sleep(2)
+					doConnect()
+				elif index == 5 or index == 6:
+					self.setStatus(STATUS_REJECTION)
+				else:
+					time.sleep(6)
+					child.sendline('connect ' + servicePath)
+					doConnect()
 			except:
-				pass
+				print "timeout"
+				if not self.bInternetConnected:
+					self.reconnect()
+				else:
+					self.setStatus(STATUS_ONLINE)
 
-		if not servicePath:
-			print("No wifi network found")
-			return
-
-		print "Attempting to connect to " + ssid + "..." + passphrase
-		dispatcher.send(signal="wifi_connection_status",statusID=STATUS_CONNECTING)
-
-		def serviceConnect():
-			print "service"
-			self.agent = pyconnman.SimpleWifiAgent('/test/agent')
-			self.agent.set_service_params(servicePath,name,ssid,identity,username,password,passphrase,wpspin)
-			self.manager.register_agent('/test/agent')
-			service = pyconnman.ConnService(servicePath)
-			service.connect()
-			dispatcher.send(signal="wifi_connection_status",statusID=STATUS_ONLINE)
-
-		try:
-			serviceConnect()
-		except dbus.exceptions.DBusException:
-			exception = str(dbus.String(sys.exc_info()[1]))
-			print exception
-			if exception.find('there is already a handler') != -1:
-				print "Restting service..."
-				service = pyconnman.ConnService(servicePath)
-				service.remove()
-				serviceConnect()
-			elif exception.find('AlreadyConnected') != -1:
-				dispatcher.send(signal="wifi_connection_status",statusID=STATUS_ONLINE)
-				pass
-			elif exception.find('NoReply') != -1:
-				dispatcher.send(signal="wifi_connection_status",statusID=STATUS_REJECTION)
+		print "connect?"
+		doConnect()
+		print "connect!"
+		child.close()
