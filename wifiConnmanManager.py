@@ -45,6 +45,7 @@ class WifiManager():
 		self.status = STATUS_DISCONNECTED
 		self.agent = None
 		self.services = None
+		self.connectedSSID = None
 
 		self.waitForWifiInterface()
 		self.setWifiPower(True)
@@ -72,11 +73,26 @@ class WifiManager():
 				
 			time.sleep(1)
 
+	def getConnectedSSID(self):
+		try:
+			for (path, params) in self.services:
+				if params['State'] == "online" or params['State'] == "ready":
+					if params['Name'] != self.connectedSSID:
+						dispatcher.send(signal="wifi_connection_currentSSID",ssid=params['Name'])		
+
+					self.connectedSSID = params['Name']
+					return self.connectedSSID
+		except:
+			pass
+
+		return None
+
 	def getStatus(self):
 		status = None
 		state = self.manager.get_property(name='State')
+
 		# See if we're logged into an access point.
-		if state == "online" or status == "ready":
+		if state == "online" or state == "ready":
 			# Ping Google to see if we have an internet connection.
 			try:
 				urllib2.urlopen('http://216.58.192.142', timeout=NETWORK_TIMEOUT)
@@ -87,10 +103,14 @@ class WifiManager():
 				status = STATUS_OFFLINE
 
 		# If not connected to any wifi network...
-		elif state == "idle" and self.status != self.bInternetConnected:
+		elif state == "idle" and self.status != STATUS_CONNECTING and not self.bInternetConnected:
+			self.connectedSSID = None
 			status = STATUS_DISCONNECTED
 			self.reconnect()
 	
+		if not status:
+			status = self.status
+
 		return self.setStatus(status)
 
 	def setStatus(self,status):
@@ -110,6 +130,7 @@ class WifiManager():
 
 	# Do a hard reset of the wifi interface.
 	def reset(self):
+		self.connectedSSID = None
 		self.setWifiPower(False)
 		self.setWifiPower(True)
 		self.waitForWifiInterface()
@@ -154,17 +175,14 @@ class WifiManager():
 		tech = pyconnman.ConnTechnology('/net/connman/technology/wifi')
 		if tech.get_property('Powered') == 0 and bState == True:
 			tech.set_property('Powered', 1)
-			print tech.get_property('Powered')
 		elif tech.get_property('Powered') == 1 and bState == False:
 			tech.set_property('Powered', 0)
-			print tech.get_property('Powered')
 
 	# Return a list of available wifi networks. The list contains an entry for each path.
 	# Each path entry has three attributes: ssid (wifi network name), security (psk, none, etc), and strength.
 	def listServices(self):
 		def list():
 			tech = pyconnman.ConnTechnology('/net/connman/technology/wifi')
-			print tech
 			try:
 				tech.scan()
 			except:
@@ -172,6 +190,7 @@ class WifiManager():
 				return
 
 			self.services = self.manager.get_services()
+			self.getConnectedSSID()
 			wifiList = {}
 			for (path, params) in self.services:
 				try:
@@ -179,6 +198,7 @@ class WifiManager():
 					wifiList[path]['ssid'] = str(dbus.String(params['Name']))
 					wifiList[path]['security'] = str(dbus.String(params['Security'][0]))
 					wifiList[path]['strength'] = int(dbus.Byte(params['Strength']))
+					wifiList[path]['online'] = (self.connectedSSID==wifiList[path]['ssid'])
 				except:
 					pass
 
@@ -188,23 +208,23 @@ class WifiManager():
 		t.setDaemon(True)
 		t.start()
 
+	# TODO: replace the contents of this function with dbus calls instead of using pexpect with connmanctl
+	# The reason for this at the moment is that when using dbus to create an agent and connect to a wifi network for the first time...
+	# ... the result will be rejection or timeout messages from dbus.
+	# No idea why yet, but connecting through connmanctl does not have this issue.
 	def connect(self,servicePath=None,ssid=None,passphrase=None,name=None,identity=None,username=None,password=None,wpspin=None):
-		print "connect1"
 
 		while self.services == None:
 			self.listServices()
 			time.sleep(0.5)
 
-		print "connect2"
 		bClear = False
 		if not servicePath and ssid:
-			print "connect3"
 			for (path, params) in self.services:
 				try:
 					if str(dbus.String(params['Name'])) == ssid:
 						servicePath = path
 						bClear = True
-						print "connect3"
 				except:
 					pass
 
@@ -212,15 +232,9 @@ class WifiManager():
 				print("No wifi network found")
 				return
 
-			print "connect4"
-			
 			if os.path.exists('/var/lib/connman/'+servicePath):
 				os.system('rm -rf /var/lib/connman/'+servicePath)
-
-			print "Attempting to connect to " + ssid + "..." + passphrase
 		
-		print "connect5"
-
 		self.setStatus(STATUS_CONNECTING)
 		
 		child = pexpect.spawn('connmanctl')
@@ -228,33 +242,34 @@ class WifiManager():
 
 		servicePath = servicePath.replace('/net/connman/service/','')
 
-		if bClear:
-			child.sendline('config ' + servicePath + ' --remove')
-
 		child.sendline('agent on')
 		child.expect('connmanctl>')
 		child.sendline('connect ' + servicePath)
 
-		def doConnect():
-			print "connect6"
+		retries = 5
+		while retries > 0:
+			retries = retries - 1
 			try:
-				index = child.expect(['.*Already.*','.*Connected.*','.*Passphrase.*','.*In progress.*','.*Input/output.*','.*invalid.*','.*try (yes/no).*','.*aborted.*'], timeout=20)
+				index = child.expect(['.*Already.*','.*Connected.*','.*Passphrase.*','.*In progress.*','.*Input/output.*','.*invalid.*','.*try (yes/no).*','.*aborted.*'], timeout=10)
 				print child.after
 				if index == 0 or index == 1:
-					print "ONLINE"
+					self.bInternetConnected = True
 					self.setStatus(STATUS_ONLINE)
+					self.listServices()
+					break
 				elif index == 2:
 					child.sendline(passphrase)
-					doConnect()
 				elif index == 3 or index == 4:
 					time.sleep(2)
-					doConnect()
+					self.setStatus(STATUS_CONNECTING)
+					self.listServices()
 				elif index == 5 or index == 6:
 					self.setStatus(STATUS_REJECTION)
+					self.listServices()
+					break
 				else:
-					time.sleep(6)
+					time.sleep(3)
 					child.sendline('connect ' + servicePath)
-					doConnect()
 			except:
 				print "timeout"
 				if not self.bInternetConnected:
@@ -262,7 +277,6 @@ class WifiManager():
 				else:
 					self.setStatus(STATUS_ONLINE)
 
-		print "connect?"
-		doConnect()
-		print "connect!"
+				break
+
 		child.close()

@@ -44,6 +44,8 @@ var socket = io.connect('http://' + document.domain + ':' + location.port + "/")
 var networks = null;
 var bConnecting = false;
 var wifiStatus = null
+var connectedSSID = null
+var signalStrengthCharacter = '&diams;'
 
 	socket.on('connect', function() {
 		document.getElementById("connection_status").innerHTML = "Wifi"
@@ -53,35 +55,46 @@ var wifiStatus = null
 		socket.emit('on_connect', {data: 'User connected'});
 	});
 
-	socket.on('disconnect', function() {
-		socket.emit('on_disconnected', {data: 'User disconnected'});
-	});
-
-	socket.on('wifi_scan_complete', function(data){
-		html = '<select name="ssid" id="ssid" onchange="selectNetwork(this)">'
-		if (wifiStatus=='online') {
-			html+='<option value="">(Connected)</option>'
-		} else {
-			html+='<option value="">(Select a Network)</option>'
-		}
+	socket.on('wifi_scan_complete', function(data){	
 		networks = data
+		list = []
+		connectedSSID = null
 		$.each(networks, function(i, item){
 			if(item['ssid']) {
 				ssid = item['ssid']
-				strength = item['strength']
-				rating = ' &bull;'
-				if(strength>45) {
-					rating = '  &bull;&bull;'
+				if(item['online']) {
+					connectedSSID = ssid
+				} else {
+					strength = item['strength']
+					level = 1
+					if(strength>34) {
+						level=2
+					}
+					if(strength>44) {
+						level=3
+					}
+					if(strength>54) {
+						level=4
+					}
+					rating = ''
+					for (var i = 0; i < level; i++) {
+						rating += signalStrengthCharacter
+						
+					}
+					list.push([ssid,rating])
 				}
-				if(strength>50) {
-					rating = '  &bull;&bull;&bull;'
-				}
-				if(strength>54) {
-					rating = '  &bull;&bull;&bull;&bull;'
-				}	
-				html+='<option value="' + ssid + '">'+ssid+'&nbsp;&nbsp;'+rating+'</option>'
 			}
 		});
+
+		html = '<select name="ssid" id="ssid" onchange="selectNetwork(this)">'
+		if (wifiStatus!='online' && !connectedSSID) {
+			html+='<option value="">(Select a Network)</option>'
+		} else if (connectedSSID) {
+			html+='<option value="' + ssid + '">(Connected: '+connectedSSID+')</option>'
+		}
+		for (var i = 0; i < list.length; i++) {
+			html+='<option value="' + list[i][0] + '">'+list[i][0]+'&nbsp;&nbsp;'+list[i][1]+'</option>'
+		}
 		html+="</select>"
 		document.getElementById("ssid").innerHTML = html;
 	});
@@ -97,13 +110,12 @@ var wifiStatus = null
 			<label for="antenna"><b>External Antenna is Enabled</b><br> (be sure to <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">connect your antenna</a> for best results)</label><br>'
 		} else {
 			html ='<input type="checkbox" id="antenna" name="antenna" value="0" onchange="setAntenna(1)"> \
-			<label for="antenna"><b>External Antenna is Disabled</b><br> (using a <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">external antenna</a> is strongly recommended)</label><br>'
+			<label for="antenna"><b>External Antenna is Disabled</b><br> (use of an <a target=_blank href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna">external antenna</a> is strongly recommended)</label><br>'
 		}
 		if(!bNoUpdate) {
 			socket.emit('on_antenna_set', {status:status});
 		}
 		
-		console.log('Antenna: ' + Boolean(status))
 		document.getElementById("antenna_button").innerHTML = html;
 	}
 
@@ -141,7 +153,6 @@ var wifiStatus = null
 	}
 
 	socket.on('wifi_connection_status', function(status){
-		console.log(status)
 		wifiStatus = status
 		msg = null
 		if(status == 'online') {
@@ -149,16 +160,15 @@ var wifiStatus = null
 			msg = "You are connected!"
 		} else if(status == 'connecting') {
 			document.getElementById("connection_status").innerHTML = "Connecting...";
-		} else if(status == 'rejected') {
+		} else if(status == 'rejected' && !bConnecting) {
 			msg = "Connection failed. Did you enter the correct password?"
 			document.getElementById("connection_status").innerHTML = "Connection failed";
-			setOfflineMessage();
 			alert(msg)
-		} else if(status == 'disconnected') {
-			msg = "Disconnected!"
+		} else if(status == 'offline') {
+			document.getElementById("connection_status").innerHTML = "Wifi Status: Connected, No Internet :(";
 			setOfflineMessage();
 		} else {
-			document.getElementById("connection_status").innerHTML = "Disconnected";
+			msg = "Disconnected!"
 			document.getElementById("connection_status").innerHTML = "Wifi Status: Not Connected!";
 			setOfflineMessage();
 			msg = "Connection failure!"
@@ -166,9 +176,9 @@ var wifiStatus = null
 		if (bConnecting) {
 			bConnecting = false
 			document.getElementById("connect_button").innerHTML = '';
-			if (msg) {
-				alert(msg);
-			}
+			//if (msg) {
+			//	alert(msg);
+			//}
 		}
 	});
 
@@ -178,7 +188,6 @@ var wifiStatus = null
 
 	socket.on('google_assistant_event', function(eventName){
 		msg = null
-		console.log(eventName)
 		if(wifiStatus!='online') {
 			setOfflineMessage()
 		} else if(eventName=='ON_LOADING') {
@@ -196,7 +205,6 @@ var wifiStatus = null
 
 	socket.on('auth_status', function(status){
 		msg = null
-		console.log(status)
 		if(wifiStatus!='online') {
 			setOfflineMessage()
 		} else if(status=='authentication_required') {

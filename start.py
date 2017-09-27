@@ -35,7 +35,7 @@ class GoogleAssistantDemo():
 		self.statusAudioPlayer.playWait()
 		self.statusAudioPlayer.playThinking(delay=2)
 
-		print ("Starting web werver...")
+		print ("Starting web server...")
 		from localWebServer import WebServer                           
 		self.webServer = WebServer()
 
@@ -119,6 +119,7 @@ class GoogleAssistantDemo():
 						self.webServer.broadcast('google_show_authentication_uri',self.googleAssistant.getAuthroizationLink())
 
 		self.webServer.broadcast('google_assistant_event',self.googleAssistant.getPreviousEvent())
+		self.wifiManager.listServices()
 		
 	# Handler for a dispatched event when wifi has finished scanning from the WifiManger object.
 	def onWifiScan(self,data):
@@ -136,11 +137,10 @@ class GoogleAssistantDemo():
 		if not statusID:
 			statusID = self.wifiManager.getStatus()
 
-		print ":::::: " + str(statusID)
+		print statusID + ", " + str(self.googleAssistant.isRunning())
 
 		self.webServer.broadcast('wifi_connection_status',statusID)
-		if (statusID == 'disconnected' or statusID == 'offline' ) and self.googleAssistant.isRunning():
-			print "SHOULD I? " + statusID + ", " + str(self.bLostNetworkConnect)
+		if (statusID == 'disconnected' or statusID == 'offline' or statusID == 'no internet' ):
 			if not self.bLostNetworkConnect:
 				self.bLostNetworkConnect = True
 				self.statusAudioPlayer.playDisconnected()
@@ -152,7 +152,7 @@ class GoogleAssistantDemo():
 			self.bLostNetworkConnect = False
 			self.googleAssistant.checkCredentials()
 			self.webServer.broadcast('auth_status',self.googleAssistant.getAuthorizationStatus())
-			
+
 	# ---------------------------------------------------- #
 	#        GOOGLE AUTHENTICATION SYSTEM EVENTS           #
 	# ---------------------------------------------------- #
@@ -171,9 +171,9 @@ class GoogleAssistantDemo():
 			self.webServer.broadcast('google_authorization_invalid',None)
 		elif status == 'no_connection':
 			self.webServer.broadcast('google_no_connection',None)
-			if not self.wifiManager.checkPreviousWifiNetworks():
-				print "Could not find a previous wifi network in range. User needs to do setup process."
-				self.statusAudioPlayer.playSetupInstructions()
+			#if not self.wifiManager.checkPreviousWifiNetworks():
+				#print "Could not find a previous wifi network in range. User needs to do setup process."
+				#self.statusAudioPlayer.playSetupInstructions()
 
 	# When the user uploads their client.json file to the web frontend...
 	# Get the authorization URL and send it to the web server to display in HTML.
