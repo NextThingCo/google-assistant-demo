@@ -1,0 +1,43 @@
+#!/bin/sh
+RETVAL=0
+
+start() {
+	/sbin/modprobe sun4i-codec
+	/usr/sbin/alsactl restore
+	/usr/bin/amixer -c 0 cset numid=6 4
+	
+	/usr/bin/amixer cset numid=1 1%
+	aplay -d 1 --quiet /opt/boot-first.wav
+	/usr/bin/amixer cset numid=1 100%
+	if [ -e /data/.config/client.json ]
+	then
+		aplay --period-size=8192 --buffer-size=32768 --quiet /opt/boot-normal.wav &
+	else
+		aplay --period-size=8192 --buffer-size=32768 --quiet /opt/boot-first.wav &
+	fi
+}
+
+stop() {
+	echo "Nothing to do"
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	status)
+		status $processname
+		RETVAL=$?
+		;;
+	restart)
+		stop
+		start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|status|restart}"
+		;;
+esac
+exit $RETVAL
