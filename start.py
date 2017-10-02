@@ -143,9 +143,8 @@ class GoogleAssistantDemo():
 		if (statusID == 'disconnected' or statusID == 'offline' or statusID == 'no internet' ):
 			if not self.bLostNetworkConnect:
 				self.bLostNetworkConnect = True
-				if self.googleAssistant.isRunning():
-					self.statusAudioPlayer.playDisconnected()
-					self.statusAudioPlayer.playThinking(delay=6)
+				self.statusAudioPlayer.playDisconnected()
+				self.statusAudioPlayer.playThinking(delay=6)
 			
 			self.googleAssistant.killAssistant()
 			
