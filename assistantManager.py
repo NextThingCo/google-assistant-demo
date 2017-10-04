@@ -1,237 +1,503 @@
-# Copyright (C) 2017 Next Thing Co. <software@nextthing.co>
+# Copyright (C) 2017 Google Inc.
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
-# (at your option) any later version.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# You should have received a copy of the GNU General Public License
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from oauth2client.client import OAuth2WebServerFlow
-from oauth2client.file import Storage
-from oauth2client import tools
-from pydispatch import dispatcher
+"""Sample that implements gRPC client for Google Assistant API."""
+
+# pip install google-assistant-library
+
+from google.rpc import code_pb2
+from google.assistant.library import Assistant
+from google.assistant.library.event import EventType
+from google.assistant.embedded.v1alpha1 import embedded_assistant_pb2
+from tenacity import retry, stop_after_attempt, retry_if_exception
+
+
+
+import os
+import grpc
+import json
+import google.auth.transport.grpc
 import google.auth.transport.requests
 import google.oauth2.credentials
-import httplib2
-import pexpect
-import psutil
-import json
+import sounddevice
+import threading
 import time
-import ast
-import os
-import string
+import wave
+import math
+import array
 
-CLIENT      = '/opt/.config/client.json'
+from assistantManager import GoogleAssistantAuthorization
+
 CREDENTIALS = '/opt/.config/credentials.json'
+ASSISTANT_API_ENDPOINT = 'embeddedassistant.googleapis.com'
+END_OF_UTTERANCE = embedded_assistant_pb2.ConverseResponse.END_OF_UTTERANCE
+DIALOG_FOLLOW_ON = embedded_assistant_pb2.ConverseResult.DIALOG_FOLLOW_ON
+CLOSE_MICROPHONE = embedded_assistant_pb2.ConverseResult.CLOSE_MICROPHONE
+DEFAULT_GRPC_DEADLINE = 60 * 3 + 5
 
-class GoogleAssistant:    
-    def __init__(self):
-        if not os.path.exists('/opt/.config'):
-            os.makedirs('/opt/.config')
+DEFAULT_AUDIO_SAMPLE_RATE = 16000
+DEFAULT_AUDIO_SAMPLE_WIDTH = 2
+DEFAULT_AUDIO_ITER_SIZE = 3200
+DEFAULT_AUDIO_DEVICE_BLOCK_SIZE = 6400
+DEFAULT_AUDIO_DEVICE_FLUSH_SIZE = 25600
 
-        self.flow = None
-        self.bNeedAuthorization = True
-        self.process = None
-        self.authStatus = None
-        self.authLink = None
-        self.previousEvent = None
-        self.killAssistant()
+DEFAULT_ULIMIT = 65536
 
-    def startAssistant(self):
-        if self.bNeedAuthorization == True and self.checkCredentials() == False:
-            return
+class SampleAssistant(object):
+	#Sample Assistant that supports follow-on conversations.
 
-        if self.isRunning():
-            return
+	def __init__(self):
+		verbose = False
+		http_request = None
+		credsObj = None
+		self.previousEvent = None
 
-        ulimit = 65536
-        os.system('ulimit -n ' + str(ulimit))
-        dispatcher.send(signal='google_assistant_event',eventName='ON_LOADING')
-        self.previousEvent = 'ON_LOADING'
-        self.process = pexpect.spawn('google-assistant-demo --credentials ' + CREDENTIALS,timeout=None)
+		if not os.path.exists('/opt/.config'):
+			os.makedirs('/opt/.config')
 
-        while self.process.isalive():
-            try:
-                self.process.expect('\n')
-                #print self.process.before.rstrip()
-                if self.process.before:
-                    self.evalResponse(self.process.before)
+		os.system('ulimit -n ' + str(DEFAULT_ULIMIT))
 
-            except pexpect.EOF:
-                break
+		self.auth = GoogleAssistantAuthorization()
 
-    def killAssistant(self):
-        if self.process:
-            self.process.terminate(True)
-            self.process = None
+		if self.auth.bNeedAuthorization == True and self.auth.checkCredentials() == False:
+			return
 
-        for proc in psutil.process_iter():
-            if proc.name() == 'google-assistan':
-                proc.kill()
+		# Load OAuth 2.0 credentials.
+		try:
+			with open(CREDENTIALS, 'r') as f:
+				credsObj = google.oauth2.credentials.Credentials(token=None,**json.load(f))
+				http_request = google.auth.transport.requests.Request()
+				credsObj.refresh(http_request)
+		except Exception as e:
+			return
 
-    def isRunning(self):
-        try:
-            if self.process:
-                return True
-        except:
-            pass
+		with open(CREDENTIALS, 'r') as f:
+			credsObj = google.oauth2.credentials.Credentials(token=None,
+																**json.load(f))
 
-        return False
+		# Create an authorized gRPC channel.
+		grpc_channel = google.auth.transport.grpc.secure_authorized_channel(
+			credsObj, http_request, ASSISTANT_API_ENDPOINT)
 
-    def evalResponse(self,output):
-        output = ''.join(filter(lambda x: x in string.printable, output)).strip()
-        try:
-            output = ast.literal_eval(output)
-            dispatcher.send(signal='google_assistant_data',data=output)
-        except:
-            if output.find('ON_') > -1:
-                output = output.replace(":","")
-                dispatcher.send(signal='google_assistant_event',eventName=output)
-                self.previousEvent = output
-            elif output.find('timed out'):
-                dispatcher.send(signal='google_assistant_event',eventName='TIMEOUT')
-                self.previousEvent = 'TIMEOUT'
-            elif output.find('is_fatal'):
-                pass
-            else:
-                print "GoogleAssistant: Error processing response: " + output
+		self.conversation_state = None
 
-    def getPreviousEvent(self):
-        return self.previousEvent
+		# Create Google Assistant API gRPC client.
+		self.assistant = embedded_assistant_pb2.EmbeddedAssistantStub(grpc_channel)
+		self.deadline = DEFAULT_GRPC_DEADLINE
 
-    def checkCredentials(self):
-        # If Google Assistant is running, assume we are fully authorized.
-        if self.isRunning():
-            self.setAuthorizationStatus('authorized')
-            return True
+		# Configure audio source and sink.
+		audio_device = None
 
-        # Check for existing (and valid) credentials.
-        if not os.path.isfile(CREDENTIALS) or not os.path.isfile(CLIENT):
-            self.bNeedAuthorization = True
-            print( "GoogleAssistant: Authentication needed!")
-            if not self.authLink:
-                self.setAuthorizationStatus('authentication_required')
-            return False
+		audio_source = audio_device = (
+			audio_device or SoundDeviceStream(
+				sample_rate=DEFAULT_AUDIO_SAMPLE_RATE,
+				sample_width=DEFAULT_AUDIO_SAMPLE_WIDTH,
+				block_size=DEFAULT_AUDIO_DEVICE_BLOCK_SIZE,
+				flush_size=DEFAULT_AUDIO_DEVICE_FLUSH_SIZE
+			)
+		)
+		audio_sink = audio_device = (
+			audio_device or SoundDeviceStream(
+				sample_rate=DEFAULT_AUDIO_SAMPLE_RATE,
+				sample_width=DEFAULT_AUDIO_SAMPLE_WIDTH,
+				block_size=DEFAULT_AUDIO_DEVICE_BLOCK_SIZE,
+				flush_size=DEFAULT_AUDIO_DEVICE_FLUSH_SIZE
+			)
+		)
+		# Create conversation stream with the given audio source and sink.
+		self.conversation_stream = ConversationStream(
+			source=audio_source,
+			sink=audio_sink,
+			iter_size=DEFAULT_AUDIO_ITER_SIZE,
+			sample_width=DEFAULT_AUDIO_SAMPLE_WIDTH,
+		)
 
-        # Both client JSON and credentials files exist. Attempt to authenticate!
-        try:
-            credentials = google.oauth2.credentials.Credentials(token=None,**json.load(open(CREDENTIALS)))
-            http_request = google.auth.transport.requests.Request()
-            credentials.refresh(http_request)
-            self.authLink = None
-            self.bNeedAuthorization = False
-            self.setAuthorizationStatus('authorized')
-            print "GoogleAssistant: Existing valid token found!"
-            return True
-        except Exception as e:
-            if str(e).find('Failed to establish a new connection') > -1:
-                print "GoogleAssistant: Can't connect to server. No internet connection?"
-            elif str(e).find('simultaneous read') > -1:
-                # A warning from socketio about simultaneous reads.
-                # TODO... figure out a better way to handle this. For now, ignore it.
-                return
-            else:
-                print "GoogleAssistant: Authorization error: " + str(e)
+		hotword = Assistant(credsObj)
 
-            self.setAuthorizationStatus('no_connection')
-            self.bNeedAuthorization = True
-        return False
+		with self:
+			for event in hotword.start():
+				self.process_event(event)
 
-    def setAuthorizationStatus(self,status,bForce=False):
-        if status != self.authStatus or status == 'authorized' or bForce:
-            dispatcher.send(signal='google_auth_status',status=status)
+			while True:
+				continue_conversation = assistant.converse()
 
-        self.authStatus = status
+				# If we only want one conversation, break.
+				if not continue_conversation:
+					break
 
-    def getAuthorizationStatus(self):
-        return self.authStatus
+	def __enter__(self):
+		return self
 
-    def saveClientJSON(self,data):
-        if os.path.exists(CLIENT):
-            os.remove(CLIENT)
+	def __exit__(self, etype, e, traceback):
+		if e:
+			return False
+		self.conversation_stream.close()
 
-        if os.path.isfile(CREDENTIALS):
-            os.remove(CREDENTIALS)
+	def set_active(self,bActive):
+		self.bActive = bActive
 
-        with open(CLIENT, 'w') as outfile:
-            json.dump(data, outfile)
+	def process_event(self,event):
+		dispatcher.send(signal='google_assistant_event',eventName=event.type)
+		self.previousEvent = event.type
+
+		if event.type == EventType.ON_CONVERSATION_TURN_STARTED:
+			print()
+
+		print(event)
+
+		if (event.type == EventType.ON_CONVERSATION_TURN_FINISHED and
+				event.args and not event.args['with_follow_on_turn']):
+			print()
+
+	def get_previous_event(self):
+		return self.previousEvent
+
+	def is_grpc_error_unavailable(e):
+		is_grpc_error = isinstance(e, grpc.RpcError)
+		if is_grpc_error and (e.code() == grpc.StatusCode.UNAVAILABLE):
+			print('grpc unavailable error: ' + str(e))
+			return True
+		return False
+
+	@retry(reraise=True, stop=stop_after_attempt(3),
+		   retry=retry_if_exception(is_grpc_error_unavailable))
+	def converse(self):
+		"""Send a voice request to the Assistant and playback the response.
+
+		Returns: True if conversation should continue.
+		"""
+		continue_conversation = False
+
+		self.conversation_stream.start_recording()
+
+		def iter_converse_requests():
+			for c in self.gen_converse_requests():
+				#print(c)
+				#assistant_helpers.log_converse_request_without_audio(c)
+				yield c
+			self.conversation_stream.start_playback()
+
+		# This generator yields ConverseResponse proto messages
+		# received from the gRPC Google Assistant API.
+		for resp in self.assistant.Converse(iter_converse_requests(),
+											self.deadline):
+			self.process_event(resp.event)
+			#print(resp)
+			#assistant_helpers.log_converse_response_without_audio(resp)
+			if resp.error.code != code_pb2.OK:
+				print('server error: ' + str(resp.error.message))
+				break
+			if resp.event_type == END_OF_UTTERANCE:
+				self.conversation_stream.stop_recording()
+			if resp.result.spoken_request_text:
+				print('Transcript of user request: ' + resp.result.spoken_request_text)
+			if len(resp.audio_out.audio_data) > 0:
+				self.conversation_stream.write(resp.audio_out.audio_data)
+			if resp.result.spoken_response_text:
+				print('Transcript of TTS response: ' + rresp.result.spoken_response_text)
+			if resp.result.conversation_state:
+				self.conversation_state = resp.result.conversation_state
+			if resp.result.volume_percentage != 0:
+				self.conversation_stream.volume_percentage = resp.result.volume_percentage
+			if resp.result.microphone_mode == DIALOG_FOLLOW_ON:
+				continue_conversation = True
+			elif resp.result.microphone_mode == CLOSE_MICROPHONE:
+				continue_conversation = False
+		self.conversation_stream.stop_playback()
+		return continue_conversation
+
+	def gen_converse_requests(self):
+		converse_state = None
+		if self.conversation_state:
+			converse_state = embedded_assistant_pb2.ConverseState(
+				conversation_state=self.conversation_state,
+			)
+		config = embedded_assistant_pb2.ConverseConfig(
+			audio_in_config=embedded_assistant_pb2.AudioInConfig(
+				encoding='LINEAR16',
+				sample_rate_hertz=self.conversation_stream.sample_rate,
+			),
+			audio_out_config=embedded_assistant_pb2.AudioOutConfig(
+				encoding='LINEAR16',
+				sample_rate_hertz=self.conversation_stream.sample_rate,
+				volume_percentage=self.conversation_stream.volume_percentage,
+			),
+			converse_state=converse_state
+		)
+		# The first ConverseRequest must contain the ConverseConfig
+		# and no audio data.
+		yield embedded_assistant_pb2.ConverseRequest(config=config)
+		for data in self.conversation_stream:
+			# Subsequent requests need audio data, but not config.
+			yield embedded_assistant_pb2.ConverseRequest(audio_in=data)
+
+class WaveSource(object):
+	"""Audio source that reads audio data from a WAV file.
+
+	Reads are throttled to emulate the given sample rate and silence
+	is returned when the end of the file is reached.
+
+	Args:
+	  fp: file-like stream object to read from.
+	  sample_rate: sample rate in hertz.
+	  sample_width: size of a single sample in bytes.
+	"""
+	def __init__(self, fp, sample_rate, sample_width):
+		self._fp = fp
+		try:
+			self._wavep = wave.open(self._fp, 'r')
+		except wave.Error as e:
+			self._fp.seek(0)
+			self._wavep = None
+
+		self._sample_rate = sample_rate
+		self._sample_width = sample_width
+		self._sleep_until = 0
+
+	def read(self, size):
+		#Read bytes from the stream and block until sample rate is achieved.
+		now = time.time()
+		missing_dt = self._sleep_until - now
+		if missing_dt > 0:
+			time.sleep(missing_dt)
+		self._sleep_until = time.time() + self._sleep_time(size)
+		data = (self._wavep.readframes(size)
+				if self._wavep
+				else self._fp.read(size))
+		#  When reach end of audio stream, pad remainder with silence (zeros).
+		if not data:
+			return b'\x00' * size
+		return data
+
+	def close(self):
+		"""Close the underlying stream."""
+		if self._wavep:
+			self._wavep.close()
+		self._fp.close()
+
+	def _sleep_time(self, size):
+		sample_count = size / float(self._sample_width)
+		sample_rate_dt = sample_count / float(self._sample_rate)
+		return sample_rate_dt
+
+	def start(self):
+		pass
+
+	def stop(self):
+		pass
+
+	@property
+	def sample_rate(self):
+		return self._sample_rate
 
 
-    def getAuthroizationLink(self,bRefresh=False):
-        if not self.getAuthorizationStatus():
-            return
+class WaveSink(object):
+	"""Audio sink that writes audio data to a WAV file.
 
-        if self.getAuthorizationStatus() == 'authorized' or self.previousEvent == 'ON_LOADING' or os.path.isfile(CREDENTIALS):
-            self.authLink = None
-            return
+	Args:
+	  fp: file-like stream object to write data to.
+	  sample_rate: sample rate in hertz.
+	  sample_width: size of a single sample in bytes.
+	"""
+	def __init__(self, fp, sample_rate, sample_width):
+		self._fp = fp
+		self._wavep = wave.open(self._fp, 'wb')
+		self._wavep.setsampwidth(sample_width)
+		self._wavep.setnchannels(1)
+		self._wavep.setframerate(sample_rate)
 
-        if self.authLink != None and not bRefresh:
-            return self.authLink
+	def write(self, data):
+		"""Write bytes to the stream.
 
-        if not os.path.isfile(CLIENT):
-            return
+		Args:
+		  data: frame data to write.
+		"""
+		self._wavep.writeframes(data)
 
-        data = None
-        with open(CLIENT) as data_file:    
-            data = json.load(data_file)
+	def close(self):
+		"""Close the underlying stream."""
+		self._wavep.close()
+		self._fp.close()
 
-        try:
-            clientID = data['installed']['client_id']
-            clientSecret = data['installed']['client_secret']
-            uri = data['installed']['redirect_uris'][0]
-            scope = 'https://www.googleapis.com/auth/assistant-sdk-prototype'
+	def start(self):
+		pass
 
-            self.flow = OAuth2WebServerFlow(client_id=clientID,
-                client_secret=clientSecret,
-                scope=scope,
-                redirect_uri=uri)
+	def stop(self):
+		pass
 
-            self.authLink = self.flow.step1_get_authorize_url()
-            self.setAuthorizationStatus('authentication_uri_created',True)
-            return self.authLink
-        except Exception as e:
-            print e
-            return False
 
-    def setAuthorizationCode(self,authCode):
-        self.authLink = None
-        try:
-            credentials = self.flow.step2_exchange(authCode)
-            credentials.authorize(httplib2.Http())
-            jsonCredentials = json.loads(credentials.to_json())
+class SoundDeviceStream(object):
+	"""Audio stream based on an underlying sound device.
 
-            data = {}
-            data['scopes'] = ['https://www.googleapis.com/auth/assistant-sdk-prototype']
-            data['token_uri'] = jsonCredentials['token_uri']
-            data['client_id'] = jsonCredentials['client_id']
-            data['client_secret'] = jsonCredentials['client_secret']
-            data['refresh_token'] = jsonCredentials['refresh_token']
+	It can be used as an audio source (read) and a audio sink (write).
 
-            with open(CREDENTIALS, 'w') as outfile:
-                json.dump(data, outfile)
+	Args:
+	  sample_rate: sample rate in hertz.
+	  sample_width: size of a single sample in bytes.
+	  block_size: size in bytes of each read and write operation.
+	  flush_size: size in bytes of silence data written during flush operation.
+	"""
+	def __init__(self, sample_rate, sample_width, block_size, flush_size):
+		if sample_width == 2:
+			audio_format = 'int16'
+		else:
+			raise Exception('unsupported sample width:', sample_width)
+		self._audio_stream = sounddevice.RawStream(
+			samplerate=sample_rate, dtype=audio_format, channels=1,
+			blocksize=int(block_size/2),  # blocksize is in number of frames.
+		)
+		self._block_size = block_size
+		self._flush_size = flush_size
+		self._sample_rate = sample_rate
 
-            return True
-        except Exception as e:
-            print( "Authorization failed! " + str(e))
-            self.bNeedAuthorization = True
-            self.setAuthorizationStatus('authentication_invalid')
-            
-            return False
+	def read(self, size):
+		"""Read bytes from the stream."""
+		buf, overflow = self._audio_stream.read(size)
+		return bytes(buf)
 
-    def resetCredentials(self):
-        try: os.remove(CREDENTIALS)
-        except: pass
-        
-        try: os.remove(CLIENT)
-        except: pass
+	def write(self, buf):
+		"""Write bytes to the stream."""
+		underflow = self._audio_stream.write(buf)
+		return len(buf)
 
-        self.authLink = None
+	def flush(self):
+		if self._flush_size > 0:
+			self._audio_stream.write(b'\x00' * self._flush_size)
 
-        print "Credentials cleared"
+	def start(self):
+		"""Start the underlying stream."""
+		if not self._audio_stream.active:
+			self._audio_stream.start()
 
+	def stop(self):
+		"""Stop the underlying stream."""
+		if self._audio_stream.active:
+			self.flush()
+			self._audio_stream.stop()
+
+	def close(self):
+		"""Close the underlying stream and audio interface."""
+		if self._audio_stream:
+			self.stop()
+			self._audio_stream.close()
+			self._audio_stream = None
+
+	@property
+	def sample_rate(self):
+		return self._sample_rate
+
+
+class ConversationStream(object):
+	"""Audio stream that supports half-duplex conversation.
+
+	A conversation is the alternance of:
+	- a recording operation
+	- a playback operation
+
+	  When conversations are finished:
+	  - close()
+
+	Args:
+	  source: file-like stream object to read input audio bytes from.
+	  sink: file-like stream object to write output audio bytes to.
+	  iter_size: read size in bytes for each iteration.
+	  sample_width: size of a single sample in bytes.
+	"""
+	def __init__(self, source, sink, iter_size, sample_width):
+		self._source = source
+		self._sink = sink
+		self._iter_size = iter_size
+		self._sample_width = sample_width
+		self._stop_recording = threading.Event()
+		self._start_playback = threading.Event()
+
+	def start_recording(self):
+		"""Start recording from the audio source."""
+		self._stop_recording.clear()
+		self._source.start()
+		self._sink.start()
+
+	def stop_recording(self):
+		"""Stop recording from the audio source."""
+		self._stop_recording.set()
+
+	def start_playback(self):
+		"""Start playback to the audio sink."""
+		self._start_playback.set()
+
+	def stop_playback(self):
+		"""Stop playback from the audio sink."""
+		self._start_playback.clear()
+		self._source.stop()
+		self._sink.stop()
+
+	@property
+	def volume_percentage(self):
+		"""The current volume setting as an integer percentage (1-100)."""
+		try:
+			return self._volume_percentage
+		except:
+			return
+
+	def read(self, size):
+		"""Read bytes from the source (if currently recording).
+		Will returns an empty byte string, if stop_recording() was called.
+		"""
+		if self._stop_recording.is_set():
+			return b''
+		return self._source.read(size)
+
+	def write(self, buf):
+		"""Write bytes to the sink (if currently playing).
+		Will block until start_playback() is called.
+		"""
+		self._start_playback.wait()
+		buf = self.align_buf(buf, self._sample_width)
+		buf = self.normalize_audio_buffer(buf)
+		return self._sink.write(buf)
+
+	def normalize_audio_buffer(self, buf, volume_percentage=100, sample_width=2):
+		if sample_width != 2:
+			raise Exception('unsupported sample width:', sample_width)
+		scale = math.pow(2, 1.0*volume_percentage/100)-1
+		# Construct array from bytes based on sample_width, multiply by scale
+		# and convert it back to bytes
+		arr = array.array('h', buf)
+		for idx in range(0, len(arr)):
+			arr[idx] = int(arr[idx]*scale)
+		buf = arr.tostring()
+		return buf
+
+	def align_buf(self, buf, sample_width):
+		"""In case of buffer size not aligned to sample_width pad it with 0s"""
+		remainder = len(buf) % sample_width
+		if remainder != 0:
+			buf += b'\0' * (sample_width - remainder)
+		return buf
+
+	def close(self):
+		"""Close source and sink."""
+		self._source.close()
+		self._sink.close()
+
+	def __iter__(self):
+		"""Returns a generator reading data from the stream."""
+		return iter(lambda: self.read(self._iter_size), b'')
+
+	@property
+	def sample_rate(self):
+		return self._source._sample_rate
+
+if __name__ == '__main__':
+	assistant = SampleAssistant()
