@@ -40,7 +40,8 @@ class StatusAudioPlayer():
 		self.bPlayedSetupInstructions = False
 		self.audioHighPriorityProcs = 0
 		self.bUserConnectedToWebFrontend = False
-		self.introTime = None
+		self.introTime = -100
+		self.audioTime = -100
 
 	# Set a status value for whether or not the user has successfully connected to the local web server's HTML frontend.
 	def setUserConnectionStatus(self,bStatus):
@@ -50,13 +51,14 @@ class StatusAudioPlayer():
 	# Can also set to block. Otherwise, aplay will run in its own thread.
 	def playAudio(self,audioFile,bBlocking=False,bPriority=False,delay=0):
 		# If this audio file is not high priority and one is already playing, do nothing.
-		if not bPriority and self.highPriorityAudioIsPlaying():
-			return
+		if not bPriority and self.highPriorityAudioIsPlaying(): return
+		if delay > 0 and time.time() - self.audioTime < 0.5: return
 
-		cmd = "sleep " + str(delay) + " && aplay --period-size=8192 --buffer-size=32768 --quiet " + audioFile
-
+		
 		def aplay():
+			self.audioTime = time.time()
 			if bPriority: self.audioHighPriorityProcs = self.audioHighPriorityProcs + 1
+			cmd = "sleep " + str(delay) + " && aplay --period-size=8192 --buffer-size=32768 --quiet " + audioFile
 			subprocess.call(cmd,shell=True)
 			if bPriority: self.audioHighPriorityProcs = self.audioHighPriorityProcs - 1
 

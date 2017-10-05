@@ -46,11 +46,11 @@ class WifiManager():
 		self.agent = None
 		self.services = None
 		self.connectedSSID = None
+		self.activePath = None
 
 		self.waitForWifiInterface()
 		self.setWifiPower(True)
 		time.sleep(1)
-		self.reset()
 
 		# Monitor the state of wifi and internet status every few seconds.
 		def monitor():
@@ -64,8 +64,8 @@ class WifiManager():
 
 	# Wait until the WiFi interface exists and is ready to be used.
 	def waitForWifiInterface(self):
-		technologies = self.manager.get_technologies()
 		while True:
+			technologies = self.manager.get_technologies()
 			for i in technologies:
  				(path, params) = i
 				if params['Name'] == 'WiFi':
@@ -166,7 +166,7 @@ class WifiManager():
 			wifiPath = path.replace('/net/connman/service/','')
 			settingsFile = '/var/lib/connman/'+wifiPath+'/settings'
 			if self.agentExists(wifiPath) and os.path.isfile(settingsFile) and 'Favorite=true' in open(settingsFile).read():
-				print ("Attempting to reconnect to " + params['Name'])
+				print("Attempting to reconnect to " + params['Name'])
 				self.connect(servicePath=wifiPath)
 
 		return False
@@ -192,6 +192,7 @@ class WifiManager():
 			self.services = self.manager.get_services()
 			self.getConnectedSSID()
 			wifiList = {}
+
 			for (path, params) in self.services:
 				try:
 					wifiList[path] = {}
@@ -246,12 +247,14 @@ class WifiManager():
 		child.expect('connmanctl>')
 		child.sendline('connect ' + servicePath)
 
-		retries = 5
-		while retries > 0:
+		self.activePath = servicePath
+
+		retries = 3
+		while retries > 0 and self.activePath == servicePath:
 			retries = retries - 1
 			try:
 				index = child.expect(['.*Already.*','.*Connected.*','.*Passphrase.*','.*In progress.*','.*Input/output.*','.*invalid.*','.*try (yes/no).*','.*aborted.*'], timeout=10)
-				print child.after
+				print(child.after)
 				if index == 0 or index == 1:
 					self.bInternetConnected = True
 					self.setStatus(STATUS_ONLINE)
@@ -260,10 +263,12 @@ class WifiManager():
 				elif index == 2:
 					child.sendline(passphrase)
 				elif index == 3 or index == 4:
+					self.status = None
 					time.sleep(2)
 					self.setStatus(STATUS_CONNECTING)
 					self.listServices()
 				elif index == 5 or index == 6:
+					self.status = None
 					self.setStatus(STATUS_REJECTION)
 					self.listServices()
 					break
@@ -271,7 +276,7 @@ class WifiManager():
 					time.sleep(3)
 					child.sendline('connect ' + servicePath)
 			except:
-				print "timeout"
+				print("timeout")
 				if not self.bInternetConnected:
 					self.reconnect()
 				else:

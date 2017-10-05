@@ -74,31 +74,31 @@ class GoogleAssistantDemo():
 	def onGoogleAssistantEvent(self,eventName):
 		self.webServer.broadcast('google_assistant_event',eventName)
 		if eventName == 'ON_START_FINISHED':
-			print 'GoogleAssistant: Ready! Say "Hey Google" or "OK Google" and a question.'
+			print('GoogleAssistant: Ready! Say "Hey Google" or "OK Google" and a question.')
 			self.statusAudioPlayer.playReadyAudio()
 		if eventName == 'ON_CONVERSATION_TURN_STARTED':
 			self.statusAudioPlayer.playListeningAudio()
-			print "GoogleAssistant: Waiting for user to finish speaking..."
+			print("GoogleAssistant: Waiting for user to finish speaking...")
 		if eventName == 'ON_END_OF_UTTERANCE':
-			print "GoogleAssistant: User has finished speaking."
+			print("GoogleAssistant: User has finished speaking.")
 		if eventName == 'ON_RESPONDING_FINISHED':
-			print "GoogleAssistant: Finished reponse."
+			print("GoogleAssistant: Finished reponse.")
 		if eventName == 'ON_CONVERSATION_TURN_TIMEOUT':
 			self.statusAudioPlayer.playFailureAudio()
-			print "GoogleAssistant: Stopped waiting for reply."
+			print("GoogleAssistant: Stopped waiting for reply.")
 		if eventName == 'ON_NO_RESPONSE':
 			self.statusAudioPlayer.playFailureAudio()
-			print "GoogleAssistant: No valid response to user's sentence."
+			print("GoogleAssistant: No valid response to user's sentence.")
 
 	# A handler for data coming from our implementation of Google Assistant.
 	# The argument will be a JSON object that contains things like the user's parsed speech
 	def onGoogleAssistantData(self,data):
 		if "text" in data:
-			print "GoogleAssistant: User request: \"" + data["text"] + "\""
+			print("GoogleAssistant: User request: \"" + data["text"] + "\"")
 		elif "with_follow_on_turn" in data and data['with_follow_on_turn']:
-			print "GoogleAssistant: Asking follow-up question..."
+			print("GoogleAssistant: Asking follow-up question...")
 		elif "is_muted" in data and data['is_muted']:
-			print "GoogleAssistant: Muted!"
+			print("GoogleAssistant: Muted!")
 
 	# ---------------------------------------------------- #
 	#              NETWORK SYSTEM EVENTS                   #
@@ -127,7 +127,7 @@ class GoogleAssistantDemo():
 		
 	# Handler for dispatch event when the user requests to connect a network from the HTML frontend.
 	def onWifiRequestConnection(self,data):
-		print "Wifi attempting connection to " + data['ssid']
+		print("Wifi attempting connection to " + data['ssid'])
 		self.wifiManager.connect(ssid=data['ssid'],passphrase=data['passphrase'])
 
 	# Event from Wifi Manager object when user has either successfully or unsuccessfully connected to a wifi network.
@@ -136,11 +136,10 @@ class GoogleAssistantDemo():
 
 		if not statusID:
 			statusID = self.wifiManager.getStatus()
-
-		print statusID + ", " + str(self.googleAssistant.isRunning())
-
 		self.webServer.broadcast('wifi_connection_status',statusID)
-		if (statusID == 'disconnected' or statusID == 'offline' or statusID == 'no internet' ):
+		if statusID == 'rejected' and not self.bLostNetworkConnect:
+			self.bLostNetworkConnect = True
+		elif statusID == 'disconnected' or statusID == 'offline' or statusID == 'no internet':
 			if not self.bLostNetworkConnect:
 				self.bLostNetworkConnect = True
 				if self.googleAssistant.isRunning():
@@ -179,7 +178,7 @@ class GoogleAssistantDemo():
 	# When the user uploads their client.json file to the web frontend...
 	# Get the authorization URL and send it to the web server to display in HTML.
 	def onGoogleClientJSONReceived(self,data):
-		print "GoogleAssistant: Client JSON received."
+		print("GoogleAssistant: Client JSON received.")
 		self.googleAssistant.saveClientJSON(data)
 		self.googleAssistant.getAuthroizationLink(True)
 

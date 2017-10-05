@@ -75,6 +75,8 @@ class GoogleAssistant:
             if proc.name() == 'google-assistan':
                 proc.kill()
 
+        dispatcher.send(signal='google_assistant_event',eventName="NOT_RUNNING")
+
     def isRunning(self):
         try:
             if self.process:
@@ -100,14 +102,14 @@ class GoogleAssistant:
             elif output.find('is_fatal'):
                 pass
             else:
-                print "GoogleAssistant: Error processing response: " + output
+                print("GoogleAssistant: Error processing response: " + output)
 
     def getPreviousEvent(self):
         return self.previousEvent
 
     def checkCredentials(self):
         # If Google Assistant is running, assume we are fully authorized.
-        if self.isRunning():
+        if self.isRunning() and os.path.isfile(CREDENTIALS):
             self.setAuthorizationStatus('authorized')
             return True
 
@@ -127,17 +129,17 @@ class GoogleAssistant:
             self.authLink = None
             self.bNeedAuthorization = False
             self.setAuthorizationStatus('authorized')
-            print "GoogleAssistant: Existing valid token found!"
+            print("GoogleAssistant: Existing valid token found!")
             return True
         except Exception as e:
             if str(e).find('Failed to establish a new connection') > -1:
-                print "GoogleAssistant: Can't connect to server. No internet connection?"
+                print("GoogleAssistant: Can't connect to server. No internet connection?")
             elif str(e).find('simultaneous read') > -1:
                 # A warning from socketio about simultaneous reads.
                 # TODO... figure out a better way to handle this. For now, ignore it.
                 return
             else:
-                print "GoogleAssistant: Authorization error: " + str(e)
+                print("GoogleAssistant: Authorization error: " + str(e))
 
             self.setAuthorizationStatus('no_connection')
             self.bNeedAuthorization = True
@@ -196,7 +198,7 @@ class GoogleAssistant:
             self.setAuthorizationStatus('authentication_uri_created',True)
             return self.authLink
         except Exception as e:
-            print e
+            print(e)
             return False
 
     def setAuthorizationCode(self,authCode):
@@ -220,18 +222,20 @@ class GoogleAssistant:
         except Exception as e:
             print( "Authorization failed! " + str(e))
             self.bNeedAuthorization = True
+            self.killAssistant()
             self.setAuthorizationStatus('authentication_invalid')
             
             return False
 
     def resetCredentials(self):
-        try: os.remove(CREDENTIALS)
-        except: pass
-        
-        try: os.remove(CLIENT)
-        except: pass
+
+        os.system("rm " + CLIENT)
+        os.system("rm " + CREDENTIALS)
+        os.system("ls /opt/.config")
 
         self.authLink = None
-
-        print "Credentials cleared"
+        self.killAssistant()
+        time.sleep(0.5)
+        self.checkCredentials()
+        print("Credentials cleared")
 

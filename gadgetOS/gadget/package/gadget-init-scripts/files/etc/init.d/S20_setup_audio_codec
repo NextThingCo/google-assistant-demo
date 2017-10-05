@@ -8,7 +8,7 @@ start() {
 	
 	/usr/bin/amixer cset numid=1 1%
 	aplay -d 1 --quiet /opt/boot-first.wav
-	/usr/bin/amixer cset numid=1 100%
+	/usr/bin/amixer cset numid=1 80%
 	if [ -e /data/.config/client.json ]
 	then
 		aplay --period-size=8192 --buffer-size=32768 --quiet /opt/boot-normal.wav &

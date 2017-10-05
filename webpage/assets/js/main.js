@@ -13,13 +13,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-var authInstructions = '<p>In order to use Google Assistant on your device for development purposes,  \
-						you will first need to set up a new project under your Google Account if you have not done so already.</p> \
-						<p><b>You should only have to do these steps once per device.</b></p> \
-						<p>1: Follow <a target="_blank" href="https://developers.google.com/assistant/sdk/prototype/getting-started-other-platforms/config-dev-project-and-account">this link</a> \
-						for instructions on setting up an account.</p> \
-    					<p>2: Once completed, you should now have a <b>client_secret_xxxxx.json</b> credentials file saved to the computer you are using to access this page.<p>\
-						<p>3: Upload your credentials JSON file by clicking the <b>Choose File</b> button and then <b>Submit<b></p> \
+var authInstructions = '<p>In order to use Google Assistant on your device for development purposes, you will first need to set up a new project under your Google Account if you have not done so already.</p> \
+						<p>This may look like a lot of steps, but don\'t worry. You should only have to do this once.</b></p> \
+						<p>1: Go to the <a href="https://console.cloud.google.com/project" target=_blank>Google Cloud Platform Console Projects</a> page.</p> \
+						<p>2: Click on <b>"Create Project"</b> up top next to the blue square with a plus sign.</p> \
+						<p>3: Name the Project <b>"My Google Assistant"</b> and click "<b>Create."</b></p> \
+						<p>4: You should see a spinning progress icon in the top right. Wait a few seconds for it to finish creating your project. After it is done, you will be brought to your project\'s configuration page.<p> \
+						<p>5: <b><a href="https://console.developers.google.com/apis/api/embeddedassistant.googleapis.com/overview" target="_blank">Click here</a></b> to go straight to the Google Assistant API page. Click <b>"Enable"</b> next to the blue arrow towards the top.<p> \
+						<p>6: Google will warn you that you need to create credentials to use this API. Click <b>"Create credentials"</b> in the top right. This will take you to a setup wizard page.<p> \
+						<p>7: Under <i>"where will you be calling the API from"</i>, select <b>"Other UI (e.g. Windows, CLI tool)"</b>. For <i>"what data will you be accessing"</i> select the <b>"User data"</b> circle. Now tap <b>"what credentials do I need?"</b> \
+						<p>8: Google should recommend that you create an OAuth 2.0 client ID. Name the Client ID anything you want and then click <b>"create client ID."</b> \
+						<p>9: Under <i>"product name shown to users"</i> enter <b>"My Google Assistant."</b> Then click continue.<p> \
+						<p>10: Click <b>"done."</b> There\'s no need to click download here as we only need the client secret, which we will download next.<p> \
+						<p>11: Now under the list of OAuth 2.0 client IDs, you should see the client ID you just made. All the way to the right, click on the download icon to download the <b>client_secret_XXX.json</b> file, where <i>\'XXX\'</i> is your client ID. Save this file to your computer.<p> \
+						<p>12: Go to the <b>Activity Controls Page</b> for your Google account and make sure that <b>"Web & App Activity"</b>, <b>"Location History"</b>, <b>"Device Information"</b>, and <b>"Voice & Audio Activity"</b> are enabled. This is so Google Assistant can actually read you personalized information.<p> \
+						<p>13: Upload the <b>client_secret_XXX.json</b> file you downloaded in Step #11 to this page by clicking the <b>Choose File</b> button and then <b>Submit<b></p> \
 						<form name="auth" id="auth" method="post" action="/" id="AUTH_CODE" > \
     					<p id="auth_code"</p> \
 						</form>'
@@ -40,9 +48,12 @@ var authURICopy2 		= '<p>You will then see an authorization code. Copy this code
 							<p><p><p> \
 							<p><a id="clearCreds" title="Reset Credentials" href="#" onclick="resetGoogleCredentials();return false;">Reset Credentials</a></p>'
 
+var helpCopy			= '<br><br><br><br><br><br>Having trouble? Click <a href="#" onclick="help();">here</a> for help.'
+
 var socket = io.connect('http://' + document.domain + ':' + location.port + "/");
 var networks = null;
 var bConnecting = false;
+var bAuthorized = false;
 var wifiStatus = null
 var connectedSSID = null
 var signalStrengthCharacter = '&diams;'
@@ -101,6 +112,7 @@ var signalStrengthCharacter = '&diams;'
 
 	function resetGoogleCredentials() {
 		socket.emit('on_reset_googleCredentials');
+		alert("Your credentials have been cleared! Please complete the setup process again.")
 		window.location.reload()
 	}
 
@@ -152,6 +164,14 @@ var signalStrengthCharacter = '&diams;'
 		socket.emit('on_wifi_connect', {ssid:selectedSsid,passphrase:inputPassphrase});
 	}
 
+	function help() {
+		html = '<br><br><br><br>'
+		html = html + 'If Google is asking you to change more settings, <a href="https://developers.google.com/assistant/sdk/develop/activity-controls" target="_blank">read these instructions.</a>'
+		html = html + '<br><br>If your device keeps disconnecting from the internet, make sure you have <a href="https://docs.getchip.com/chip_pro_devkit.html#connect-antenna" target="_blank">attached the external wifi antenna.</a>'
+		html = html + '<br><br>For any other issues, try <a id="clearCreds" title="Reset Credentials" href="#" onclick="resetGoogleCredentials();return false;">restarting the setup procedure.</a>'
+		document.getElementById("auth_input").innerHTML = html
+	}
+
 	socket.on('wifi_connection_status', function(status){
 		wifiStatus = status
 		msg = null
@@ -198,8 +218,11 @@ var signalStrengthCharacter = '&diams;'
 		} else if(eventName=='ON_RESPONDING_STARTED') {
 				document.getElementById("auth_message").innerHTML = 'Assistant is responding...';
 		} else if(eventName=='ON_CONVERSATION_TURN_FINISHED' || eventName=='ON_START_FINISHED' || eventName=='TIMEOUT') {
-			document.getElementById("auth_message").innerHTML = 'Ready! Say "Hey Google" or "OK Google" and ask your question.';
-			document.getElementById("auth_status").innerHTML = 'Google Assistant is running!'
+			if (bAuthorized) {
+				document.getElementById("auth_message").innerHTML = 'Ready! Say "Hey Google" or "OK Google" and ask your question.';
+				document.getElementById("auth_status").innerHTML = 'Google Assistant is running!'
+				document.getElementById("auth_input").innerHTML = helpCopy
+			}
 		}
 	});
 
@@ -208,14 +231,19 @@ var signalStrengthCharacter = '&diams;'
 		if(wifiStatus!='online') {
 			setOfflineMessage()
 		} else if(status=='authentication_required') {
+			bAuthorized = false;
 			document.getElementById("auth_status").innerHTML = "Google authorization required!";
 			document.getElementById("auth_message").innerHTML = authInstructions;
 			document.getElementById("auth_input").innerHTML = authJsonButton;
 		} else if (status=='authentication_uri_created') {
+			bAuthorized = false;
 			document.getElementById("auth_status").innerHTML = "Google authorization in progress...";		
 		} else if (status=='authentication_invalid') {
-			document.getElementById("auth_status").innerHTML = "Authorization failed! :(";		
+			bAuthorized = false;
+			document.getElementById("auth_status").innerHTML = "Authorization failed! :(";
+			document.getElementById("auth_input").innerHTML = helpCopy
 		} else if (status=='authorized') {
+			bAuthorized = true;
 			document.getElementById("auth_status").innerHTML = "Google Assistant is authorized!";		
 		} else if (status=='no_connection') {
 			document.getElementById("auth_status").innerHTML = "Please connect to the internet before using Google Assistant.";		
@@ -224,7 +252,7 @@ var signalStrengthCharacter = '&diams;'
 
 
 	socket.on('google_authorized', function(){
-		document.getElementById("auth_status").innerHTML = "Google Assistant is authorized and ready for use!";
+		document.getElementById("auth_status").innerHTML = "";
 		document.getElementById("auth_message").innerHTML = "";	
 		document.getElementById("auth_input").innerHTML = "";
 	});

@@ -85,7 +85,7 @@ class WebServer:
                     # Refresh page to re-establish a socket connection.
                     return redirect("/", code=302)
             except Exception as e:
-                print e
+                print(e)
 
         return ('', 204) # Return nothing
 
@@ -115,6 +115,7 @@ class WebServer:
     @socketio.on('on_reset_googleCredentials')
     def clearCredentialsEvent():
         dispatcher.send(signal='google_auth_clear',data=None)
+        return redirect("/", code=302)
         
     def shutdown(self):
         global socketio

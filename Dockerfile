@@ -10,8 +10,6 @@ RUN apt-get update && \
 	apt-get install --no-install-recommends -y \
 		connman \
 		alsa-utils \
-		locales \
-		rfkill \
 		iproute \
 		python-dev \
 		python-dbus \
@@ -23,19 +21,15 @@ RUN apt-get update && \
 		python-smbus \
 		python-pip && \
 
-	# Set locales
-	locale-gen en_US en_US.UTF-8 && \
-	sed -i -e "s/# $LANG.*/$LANG.UTF-8 UTF-8/" /etc/locale.gen && \
-	dpkg-reconfigure --frontend=noninteractive locales && \
-	update-locale LANG=$LANG && \
-
 	pip install --upgrade pip setuptools && \
 	pip install --no-cache-dir google-assistant-library && \
 	pip install --no-cache-dir pyconnman PyDispatcher Flask Flask-SocketIO flask_uploads && \
 
 	pip uninstall -y setuptools && \
 	apt-get autoremove -y && \
-	apt-get autoclean -y
+	apt-get autoclean -y && \
+
+	rm /var/lib/apt/lists/deb.debian.org_debian_dists_stretch_main_binary-armhf_Packages.lz4
 
 COPY *.py /opt/
 RUN python -m compileall /opt/.
@@ -44,5 +38,4 @@ COPY webpage /opt/webpage
 COPY configs/asoundrc /root/.asoundrc
 COPY configs/limits.conf /etc/security/
 
-#CMD ["/bin/sh"]
 #CMD ["/usr/bin/python /opt/start.py"]
