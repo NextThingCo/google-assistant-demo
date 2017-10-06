@@ -174,31 +174,27 @@ var signalStrengthCharacter = '&diams;'
 
 	socket.on('wifi_connection_status', function(status){
 		wifiStatus = status
-		msg = null
 		if(status == 'online') {
 			document.getElementById("connection_status").innerHTML = "Wifi Status: Connected";
-			msg = "You are connected!"
 		} else if(status == 'connecting') {
 			document.getElementById("connection_status").innerHTML = "Connecting...";
 		} else if(status == 'rejected' && !bConnecting) {
-			msg = "Connection failed. Did you enter the correct password?"
+			bConnecting = false;
+			//window.location.reload()
 			document.getElementById("connection_status").innerHTML = "Connection failed";
-			alert(msg)
+			alert("Connection failed. Did you enter the correct password?")
+
+			//window.location.reload()
 		} else if(status == 'offline') {
 			document.getElementById("connection_status").innerHTML = "Wifi Status: Connected, No Internet :(";
 			setOfflineMessage();
 		} else {
-			msg = "Disconnected!"
 			document.getElementById("connection_status").innerHTML = "Wifi Status: Not Connected!";
 			setOfflineMessage();
-			msg = "Connection failure!"
 		}
 		if (bConnecting) {
 			bConnecting = false
 			document.getElementById("connect_button").innerHTML = '';
-			//if (msg) {
-			//	alert(msg);
-			//}
 		}
 	});
 
@@ -227,7 +223,7 @@ var signalStrengthCharacter = '&diams;'
 	});
 
 	socket.on('auth_status', function(status){
-		msg = null
+		alert(status)
 		if(wifiStatus!='online') {
 			setOfflineMessage()
 		} else if(status=='authentication_required') {
@@ -237,27 +233,25 @@ var signalStrengthCharacter = '&diams;'
 			document.getElementById("auth_input").innerHTML = authJsonButton;
 		} else if (status=='authentication_uri_created') {
 			bAuthorized = false;
-			document.getElementById("auth_status").innerHTML = "Google authorization in progress...";		
-		} else if (status=='authentication_invalid') {
-			bAuthorized = false;
-			document.getElementById("auth_status").innerHTML = "Authorization failed! :(";
-			document.getElementById("auth_input").innerHTML = helpCopy
+			document.getElementById("auth_status").innerHTML = "Google authorization in progress...";
+			document.getElementById("auth_input").innerHTML = ""
 		} else if (status=='authorized') {
 			bAuthorized = true;
 			document.getElementById("auth_status").innerHTML = "Google Assistant is authorized!";		
 		} else if (status=='no_connection') {
 			document.getElementById("auth_status").innerHTML = "Please connect to the internet before using Google Assistant.";		
+		} else if (status=='authentication_invalid') {
+			alert('Authorization failed! Make sure you followed all the instructions and that your device is connected to the internet. Then try again.')
+			bAuthorized = false;
+			socket.emit('on_reset_googleCredentials');
+			window.location.reload()
 		}
 	});
 
-
 	socket.on('google_authorized', function(){
-		document.getElementById("auth_status").innerHTML = "";
-		document.getElementById("auth_message").innerHTML = "";	
-		document.getElementById("auth_input").innerHTML = "";
+		bAuthorized = true;
 	});
 
-	
 	socket.on('google_show_authentication_uri', function(code){
 		document.getElementById("auth_message").innerHTML = authURICopy1 + "<p><a target='_blank' href=" + code + ">Click HERE to sign in!</a></p>";
 		document.getElementById("auth_input").innerHTML = authURICopy2;
@@ -267,4 +261,3 @@ var signalStrengthCharacter = '&diams;'
 		authCode =  document.getElementById('code').value
 		socket.emit('on_submit_auth_code', {code:authCode});
 	}
-

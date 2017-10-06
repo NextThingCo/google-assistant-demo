@@ -21,7 +21,7 @@ a {
 }
 a:hover {
     color: #eb008b;
-    text-decoration: underline;;
+    text-decoration: underline;
 }
 input,
 input[type="radio"] + label,
@@ -195,4 +195,16 @@ select option {
 .btn:hover {
   background: #1e90ff;
   text-decoration: none;
+}
+
+.footer {
+    width: 100%;
+    color: #8f8f8f;
+    color: #8f8f8f;
+    font-size: 11px;
+    text-align: center;
+}
+.footer a, .footer a:link, .footer a:visited, .footer a:active, .footer a:hover {
+  color: #cccccc;
+  text-decoration: underline;
 }

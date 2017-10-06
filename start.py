@@ -13,6 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
+# -------------------------------------------------------------------
+# This is an implementation of Google Assistant running on a CHIP Pro
+# It has a web server running on the USB port. This provides an HTML interface
+# for connecting the device to a wifi network and setting Google's Authentication tokens
+
 from pydispatch import dispatcher
 import subprocess
 import threading
@@ -26,8 +31,6 @@ class GoogleAssistantDemo():
 	def __init__(self):
 		signal.signal(signal.SIGINT, self.signal_handler)
 		
-		self.bLostNetworkConnect = False
-		
 		from statusAudioPlayer import StatusAudioPlayer
 		self.statusAudioPlayer = StatusAudioPlayer()
 		self.statusAudioPlayer.playListeningAudio()
@@ -35,22 +38,23 @@ class GoogleAssistantDemo():
 		self.statusAudioPlayer.playWait()
 		self.statusAudioPlayer.playThinking(delay=2)
 
-		print ("Starting web server...")
-		from localWebServer import WebServer                           
-		self.webServer = WebServer()
+		print("Starting web server...")
+		from localWebServer import WebServer
+		self.bLostNetworkConnection = False                           
+		self.webServer = WebServer() # Launches web front-end for setting up Google Authorization
 
-		print ("Starting WIFI manager...")
+		print("Starting WIFI manager...")
 		from wifiConnmanManager import WifiManager
 		self.setAntennaStatus(self.getAntennaStatus())
 		self.wifiManager = WifiManager() # Manage and evaluate status of wifi/internet connections.
 	
-		print ("Starting Google applications...")
+		print("Starting Google applications...")
 		from assistantManager import GoogleAssistant
 		self.googleAssistant = GoogleAssistant()
 
-		self.setDispatchEvents() # Register functions for any dispatched events.
+		self.setDispatchEvents() # Register functions for any dispatched events from other classes.
 		self.onWifiConnectionStatus() # Evaluate our wifi and internet connections.
-		self.googleAssistant.checkCredentials() # See if Google Assistant's credentials are in place.
+		self.googleAssistant.checkCredentials() # See if Google Assistant's credentials are v.
 
 		while True:
 			time.sleep(0.5)
@@ -105,12 +109,12 @@ class GoogleAssistantDemo():
 	# ---------------------------------------------------- #
 
 	# Handler for a dispactched event when a user has connected to the device's web interface.
-	# If using a USB connection, this address will most likely be http://192.168.82.1/
+	# If using a USB connection, this address will be 192.168.82.1 or 192.168.81.1
 	def onHTMLConnection(self):
-		self.statusAudioPlayer.setUserConnectionStatus(True)
+		self.wifiManager.listServices()
 		wifiStatus = self.wifiManager.getStatus()
 		self.onWifiConnectionStatus(wifiStatus)
-		self.wifiManager.listServices()
+		self.statusAudioPlayer.setUserConnectionStatus(True)
 
 		if wifiStatus == 'online' or wifiStatus == 'connecting':
 				googleAuthStatus = self.googleAssistant.getAuthorizationStatus()
@@ -136,20 +140,19 @@ class GoogleAssistantDemo():
 
 		if not statusID:
 			statusID = self.wifiManager.getStatus()
+
 		self.webServer.broadcast('wifi_connection_status',statusID)
-		if statusID == 'rejected' and not self.bLostNetworkConnect:
-			self.bLostNetworkConnect = True
+		if statusID == 'rejected' and not self.bLostNetworkConnection:
+			self.bLostNetworkConnection = True
 		elif statusID == 'disconnected' or statusID == 'offline' or statusID == 'no internet':
-			if not self.bLostNetworkConnect:
-				self.bLostNetworkConnect = True
-				if self.googleAssistant.isRunning():
-					self.statusAudioPlayer.playDisconnected()
-					self.statusAudioPlayer.playThinking(delay=6)
-			
-			self.googleAssistant.killAssistant()
-			
+			if self.bLostNetworkConnection: return
+			self.bLostNetworkConnection = True
+			if self.googleAssistant.isRunning():
+				self.googleAssistant.killAssistant()
+				self.statusAudioPlayer.playDisconnected()
+				self.statusAudioPlayer.playThinking(delay=6)
 		elif statusID == "online":
-			self.bLostNetworkConnect = False
+			self.bLostNetworkConnection = False
 			self.googleAssistant.checkCredentials()
 			self.webServer.broadcast('auth_status',self.googleAssistant.getAuthorizationStatus())
 
@@ -165,15 +168,14 @@ class GoogleAssistantDemo():
 		elif status == 'authentication_required':
 			self.webServer.broadcast('google_authentication_required',None)
 			self.statusAudioPlayer.playSetupInstructions()
+		elif status == 'authentication_invalid':
+			self.webServer.broadcast('auth_status','authentication_invalid')
 		elif status == 'authentication_uri_created':
 			self.webServer.broadcast('google_show_authentication_uri',self.googleAssistant.getAuthroizationLink())
 		elif status == 'authentication_invalid':
 			self.webServer.broadcast('google_authorization_invalid',None)
 		elif status == 'no_connection':
 			self.webServer.broadcast('google_no_connection',None)
-			#if not self.wifiManager.checkPreviousWifiNetworks():
-				#print "Could not find a previous wifi network in range. User needs to do setup process."
-				#self.statusAudioPlayer.playSetupInstructions()
 
 	# When the user uploads their client.json file to the web frontend...
 	# Get the authorization URL and send it to the web server to display in HTML.
@@ -187,6 +189,7 @@ class GoogleAssistantDemo():
 		self.googleAssistant.setAuthorizationCode(code.strip())
 		self.googleAssistant.checkCredentials()
 
+	# Event when the user has requsted to clear all credentials from the web frontend
 	def onGoogleCredentialsRemove(self,data=None):
 		self.googleAssistant.resetCredentials()
 	
@@ -217,10 +220,13 @@ class GoogleAssistantDemo():
 		except:
 			pass
 		
+		# Wifi antenna on CHIP Pro is enabled/disabled by the signal on GPIO #49
+		# Export this pin as an output
 		if not os.path.isdir("/sys/class/gpio/gpio49"):
 			os.system("echo 49 > /sys/class/gpio/export")
 			os.system("echo 'out' > /sys/class/gpio/gpio49/direction")
 
+		# A value of 1 enables the antenna, 0 disables it.
 		os.system("echo " + str(status) + " > /sys/class/gpio/gpio49/value")
 		self.webServer.broadcast('wifi_antenna_status',status)
 

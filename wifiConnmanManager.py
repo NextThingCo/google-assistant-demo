@@ -46,6 +46,7 @@ class WifiManager():
 		self.agent = None
 		self.services = None
 		self.connectedSSID = None
+		self.bScanning = False
 		self.activePath = None
 
 		self.waitForWifiInterface()
@@ -181,13 +182,23 @@ class WifiManager():
 	# Return a list of available wifi networks. The list contains an entry for each path.
 	# Each path entry has three attributes: ssid (wifi network name), security (psk, none, etc), and strength.
 	def listServices(self):
+		if self.bScanning:
+			return
+
 		def list():
+			self.bScanning = True
 			tech = pyconnman.ConnTechnology('/net/connman/technology/wifi')
-			try:
-				tech.scan()
-			except:
-				# The carrier might not be ready yet if wifi is still powering on
-				return
+			while self.bScanning:
+				try:
+					tech.scan()
+					print("scan")
+					self.bScanning = False
+					break
+					
+				except:
+					# The carrier might not be ready yet if wifi is still powering on
+					time.sleep(1)
+					print("sleep")
 
 			self.services = self.manager.get_services()
 			self.getConnectedSSID()
@@ -204,6 +215,7 @@ class WifiManager():
 					pass
 
 			dispatcher.send(signal="wifi_scan_complete",data=wifiList)
+			self.bScanning = False
 
 		t = threading.Thread(target=list, args = ())
 		t.setDaemon(True)

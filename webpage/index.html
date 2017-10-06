@@ -12,37 +12,44 @@
 <div class="container">
     <div class="row">
       <h4><p id="connection_status">Wifi</p></h4>
-      <form name="wifi" id="wifi" method="post" action="" id="WIFI_FORM" >
-      <select name="ssid" id="ssid" onchange="selectNetwork(this)"></select>
-      <div class="input-group">
-        <p id="password_field"></p>
-      </div>
-      <div class="input-group input-group-icon">
-        <p id="connect_button"></p>
-        <p id="antenna_button"></p>
-     </div>
-    </form>
-
+      <form name="wifi" id="wifi" method="post" action="" id="WIFI_FORM">
+        <select name="ssid" id="ssid" onchange="selectNetwork(this)"></select>
+        <div class="input-group">
+          <p id="password_field"></p>
+        </div>
+        <div class="input-group input-group-icon">
+          <p id="connect_button"></p>
+          <p id="antenna_button"></p>
+        </div>
+      </form>
     </div>
+</div>
 
-  </form>
-</div>
 <p></p>
+
 <div class="container">
-  <form>
-    <div class="row">
-      <h4><p id="auth_status">Checking Google Assistant status...</p></h4>
-      <p id="auth_message">Please wait...</p>
-      <p id="auth_input"></p>
-  </form>
+  <div class="row">
+    <form>
+        <h4><p id="auth_status">Checking Google Assistant status...</p></h4>
+        <p id="auth_message">Please wait...</p>
+        <p id="auth_input"></p>
+    </form>
+  </div>
 </div>
-    <script src="assets/js/jquery.min.js"></script>
-    <script src="assets/js/jquery.scrolly.min.js"></script>
-    <script src="assets/js/jquery.poptrox.min.js"></script>
-    <script src="assets/js/skel.min.js"></script>
-    <script src="assets/js/util.js"></script>
-    <script src="assets/js/socket.io.min.js"></script>
-    <script src="assets/js/main.js"></script>  
+
+<script src="assets/js/jquery.min.js"></script>
+<script src="assets/js/jquery.scrolly.min.js"></script>
+<script src="assets/js/jquery.poptrox.min.js"></script>
+<script src="assets/js/skel.min.js"></script>
+<script src="assets/js/util.js"></script>
+<script src="assets/js/socket.io.min.js"></script>
+<script src="assets/js/main.js"></script>  
 
 </body>
+<div class="footer">
+  <p>
+    Developed by Next Thing Co. for CHIP Pro<br>
+    <a href="https://github.com/NextThingCo/google-assistant-demo.git" target="_blank">https://github.com/NextThingCo/google-assistant-demo.git</a>
+  </p>
+</div>
 </html>

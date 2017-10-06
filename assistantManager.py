@@ -134,19 +134,22 @@ class GoogleAssistant:
         except Exception as e:
             if str(e).find('Failed to establish a new connection') > -1:
                 print("GoogleAssistant: Can't connect to server. No internet connection?")
+                self.setAuthorizationStatus('no_connection',True)
             elif str(e).find('simultaneous read') > -1:
                 # A warning from socketio about simultaneous reads.
                 # TODO... figure out a better way to handle this. For now, ignore it.
                 return
             else:
+                self.setAuthorizationStatus('authentication_invalid',True)
                 print("GoogleAssistant: Authorization error: " + str(e))
 
-            self.setAuthorizationStatus('no_connection')
+            
             self.bNeedAuthorization = True
         return False
 
     def setAuthorizationStatus(self,status,bForce=False):
         if status != self.authStatus or status == 'authorized' or bForce:
+            print "AUTH STATUSETWLKJ: " + status
             dispatcher.send(signal='google_auth_status',status=status)
 
         self.authStatus = status
@@ -221,9 +224,10 @@ class GoogleAssistant:
             return True
         except Exception as e:
             print( "Authorization failed! " + str(e))
+            self.authLink = None
             self.bNeedAuthorization = True
             self.killAssistant()
-            self.setAuthorizationStatus('authentication_invalid')
+            self.setAuthorizationStatus('authentication_invalid',True)
             
             return False
 
